@@ -115,6 +115,7 @@ mod tests {
     const ADDRESS: &str = "rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX";
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_from_secret() {
         let key = PrivateKey::from_secret(SECRET).unwrap();
 
@@ -125,6 +126,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_private_key_to_public_key() {
         let private_key = PrivateKey::from_secret(SECRET).unwrap();
         let public_key = private_key.public_key();
@@ -136,6 +138,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_public_key_to_address() {
         let private_key = PrivateKey::from_secret(SECRET).unwrap();
         let public_key = private_key.public_key();

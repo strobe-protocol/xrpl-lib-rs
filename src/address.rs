@@ -74,6 +74,7 @@ mod tests {
     const BYTES: [u8; 20] = hex!("2a73c099d4b6e693facac67be9dc780043d78b12");
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_address_from_base58check() {
         let address = Address::from_base58check(ENCODED).unwrap();
 
@@ -81,6 +82,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_address_to_base58check() {
         let address = Address::from_base58check(ENCODED).unwrap();
 

@@ -152,6 +152,7 @@ mod tests {
     ];
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_encode() {
         for item in TEST_ITEMS.iter() {
             assert_eq!(item.encoded, encode(item.version, item.payload));
@@ -159,6 +160,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_decode() {
         for item in TEST_ITEMS.iter() {
             let decoded = decode(item.encoded).unwrap();

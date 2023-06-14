@@ -1,7 +1,8 @@
 use k256::{elliptic_curve::ScalarPrimitive, Secp256k1, SecretKey};
-use sha2::{Digest, Sha512};
+use ripemd::Ripemd160;
+use sha2::{Digest, Sha256, Sha512};
 
-use crate::base58check;
+use crate::{address::Address, base58check};
 
 const SEED_VERSION: u8 = 33;
 const SEED_LENGTH: usize = 16;
@@ -84,6 +85,21 @@ impl PrivateKey {
 }
 
 impl PublicKey {
+    pub fn address(&self) -> Address {
+        let mut hasher = Sha256::new();
+        hasher.update(self.to_compressed_bytes_be());
+        let hash = hasher.finalize();
+
+        let mut hasher = Ripemd160::new();
+        hasher.update(hash);
+        let hash = hasher.finalize();
+
+        let mut result = [0u8; 20];
+        result.copy_from_slice(&hash);
+
+        Address::from_byte_array(result)
+    }
+
     pub fn to_compressed_bytes_be(&self) -> [u8; 33] {
         self.inner.to_sec1_bytes().as_ref().try_into().unwrap()
     }
@@ -96,6 +112,7 @@ mod tests {
     use hex_literal::hex;
 
     const SECRET: &str = "spvyv3vG6GBG9sA6o4on8YDpxp9ZZ";
+    const ADDRESS: &str = "rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX";
 
     #[test]
     fn test_from_secret() {
@@ -116,5 +133,14 @@ mod tests {
             hex!("032dc8fe06a6969aef77325f4ea7710f25532e6e044c8d0befab585c542aa79a4c"),
             public_key.to_compressed_bytes_be(),
         );
+    }
+
+    #[test]
+    fn test_public_key_to_address() {
+        let private_key = PrivateKey::from_secret(SECRET).unwrap();
+        let public_key = private_key.public_key();
+        let address = public_key.address();
+
+        assert_eq!(ADDRESS, address.to_base58check());
     }
 }

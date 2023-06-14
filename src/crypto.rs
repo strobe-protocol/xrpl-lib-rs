@@ -10,6 +10,10 @@ pub struct PrivateKey {
     inner: SecretKey,
 }
 
+pub struct PublicKey {
+    inner: k256::PublicKey,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum PrivateKeyFromSecretError {
     #[error(transparent)]
@@ -68,8 +72,20 @@ impl PrivateKey {
         })
     }
 
+    pub fn public_key(&self) -> PublicKey {
+        PublicKey {
+            inner: self.inner.public_key(),
+        }
+    }
+
     pub fn to_bytes_be(&self) -> [u8; 32] {
         self.inner.to_bytes().as_slice().try_into().unwrap()
+    }
+}
+
+impl PublicKey {
+    pub fn to_compressed_bytes_be(&self) -> [u8; 33] {
+        self.inner.to_sec1_bytes().as_ref().try_into().unwrap()
     }
 }
 
@@ -79,13 +95,26 @@ mod tests {
 
     use hex_literal::hex;
 
+    const SECRET: &str = "spvyv3vG6GBG9sA6o4on8YDpxp9ZZ";
+
     #[test]
     fn test_from_secret() {
-        let key = PrivateKey::from_secret("spvyv3vG6GBG9sA6o4on8YDpxp9ZZ").unwrap();
+        let key = PrivateKey::from_secret(SECRET).unwrap();
 
         assert_eq!(
             hex!("1dcc1886fdceae9f60080111a19022172702b08df5b9d0c3aebcb0a004e49f0a"),
             key.to_bytes_be(),
+        );
+    }
+
+    #[test]
+    fn test_private_key_to_public_key() {
+        let private_key = PrivateKey::from_secret(SECRET).unwrap();
+        let public_key = private_key.public_key();
+
+        assert_eq!(
+            hex!("032dc8fe06a6969aef77325f4ea7710f25532e6e044c8d0befab585c542aa79a4c"),
+            public_key.to_compressed_bytes_be(),
         );
     }
 }

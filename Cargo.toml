@@ -4,3 +4,10 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
+num-bigint = "0.4.3"
+num-traits = "0.2.15"
+sha2 = "0.10.6"
+thiserror = "1.0.40"
+
+[dev-dependencies]
+hex-literal = "0.4.1"

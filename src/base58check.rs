@@ -5,7 +5,7 @@ use sha2::Digest;
 const ALPHABET_SIZE: usize = 58;
 const ALPHABET: &[u8; ALPHABET_SIZE] =
     b"rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
-const ALPHABET_ZERO: char = 'c';
+const ALPHABET_ZERO: char = ALPHABET[0] as char;
 
 #[derive(Debug)]
 pub struct DecodeResult {
@@ -132,20 +132,39 @@ mod tests {
 
     use hex_literal::hex;
 
-    const DECODED_VERSION: u8 = 0x21;
-    const DECODED_PAYLOAD: [u8; 16] = hex!("10ee423d1d21682fa4cbb6297f6f6fec");
-    const ENCODED: &str = "spvyv3vG6GBG9sA6o4on8YDpxp9ZZ";
+    struct TestItem {
+        version: u8,
+        payload: &'static [u8],
+        encoded: &'static str,
+    }
+
+    const TEST_ITEMS: &[TestItem] = &[
+        TestItem {
+            version: 0x21,
+            payload: &hex!("10ee423d1d21682fa4cbb6297f6f6fec"),
+            encoded: "spvyv3vG6GBG9sA6o4on8YDpxp9ZZ",
+        },
+        TestItem {
+            version: 0x0,
+            payload: &hex!("2a73c099d4b6e693facac67be9dc780043d78b12"),
+            encoded: "rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX",
+        },
+    ];
 
     #[test]
     fn test_encode() {
-        assert_eq!(ENCODED, encode(DECODED_VERSION, &DECODED_PAYLOAD));
+        for item in TEST_ITEMS.iter() {
+            assert_eq!(item.encoded, encode(item.version, item.payload));
+        }
     }
 
     #[test]
     fn test_decode() {
-        let decoded = decode(ENCODED).unwrap();
+        for item in TEST_ITEMS.iter() {
+            let decoded = decode(item.encoded).unwrap();
 
-        assert_eq!(DECODED_VERSION, decoded.version);
-        assert_eq!(&DECODED_PAYLOAD, &decoded.payload.as_slice());
+            assert_eq!(item.version, decoded.version);
+            assert_eq!(item.payload, decoded.payload.as_slice());
+        }
     }
 }

@@ -37,6 +37,10 @@ impl Address {
         })
     }
 
+    pub fn to_base58check(&self) -> String {
+        base58check::encode(ADDRESS_VERSION, &self.inner)
+    }
+
     pub fn to_bytes(&self) -> [u8; 20] {
         self.inner
     }
@@ -48,13 +52,20 @@ mod tests {
 
     use hex_literal::hex;
 
+    const ENCODED: &str = "rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX";
+    const BYTES: [u8; 20] = hex!("2a73c099d4b6e693facac67be9dc780043d78b12");
+
     #[test]
     fn test_address_from_base58check() {
-        let address = Address::from_base58check("rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX").unwrap();
+        let address = Address::from_base58check(ENCODED).unwrap();
 
-        assert_eq!(
-            hex!("2a73c099d4b6e693facac67be9dc780043d78b12"),
-            address.to_bytes(),
-        )
+        assert_eq!(BYTES, address.to_bytes());
+    }
+
+    #[test]
+    fn test_address_to_base58check() {
+        let address = Address::from_base58check(ENCODED).unwrap();
+
+        assert_eq!(ENCODED, address.to_base58check());
     }
 }

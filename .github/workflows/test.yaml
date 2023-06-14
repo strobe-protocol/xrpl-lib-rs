@@ -4,11 +4,11 @@ on:
       - "master"
   pull_request:
 
-name: "Linting"
+name: "Testing"
 
 jobs:
-  lint:
-    name: "Lints"
+  test:
+    name: "Testing"
     runs-on: "ubuntu-latest"
     steps:
       - name: "Checkout source code"
@@ -27,18 +27,6 @@ jobs:
         with:
           cache-on-failure: true
 
-      - name: "Install prettier"
+      - name: "Run tests"
         run: |
-          yarn global add prettier@2.8.8
-
-      - name: "Check prettier format"
-        run: |
-          prettier --ignore-path .gitignore --check .
-
-      - name: "Check Rust format"
-        run: |
-          cargo fmt --all -- --check
-
-      - name: "Run Clippy lints"
-        run: |
-          cargo clippy --all --all-targets -- -D warnings
+          cargo test --all

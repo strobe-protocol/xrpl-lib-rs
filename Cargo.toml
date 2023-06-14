@@ -8,6 +8,7 @@ k256 = "0.13.1"
 num-bigint = "0.4.3"
 num-traits = "0.2.15"
 ripemd = "0.1.3"
+serde = "1.0.164"
 sha2 = "0.10.6"
 thiserror = "1.0.40"
 

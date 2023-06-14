@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::base58check;
 
 const ADDRESS_VERSION: u8 = 0;
@@ -61,6 +63,25 @@ impl Address {
 
     pub fn to_bytes(&self) -> [u8; 20] {
         self.inner
+    }
+}
+
+impl Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_base58check())
+    }
+}
+
+impl<'de> Deserialize<'de> for Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::from_base58check(&value).map_err(|err| serde::de::Error::custom(format!("{}", err)))
     }
 }
 

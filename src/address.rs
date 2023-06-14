@@ -17,7 +17,25 @@ pub enum AddressFromEncodedError {
     InvalidPayloadLength(usize),
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("invalid slice byte length; expected: 20; actual: {0}")]
+pub struct AddressFromSliceError(usize);
+
 impl Address {
+    pub fn from_byte_array(bytes: [u8; 20]) -> Self {
+        Self { inner: bytes }
+    }
+
+    pub fn from_byte_slice(bytes: &[u8]) -> Result<Self, AddressFromSliceError> {
+        if bytes.len() == ADDRESS_LENGTH {
+            Ok(Self {
+                inner: bytes.try_into().unwrap(),
+            })
+        } else {
+            Err(AddressFromSliceError(bytes.len()))
+        }
+    }
+
     pub fn from_base58check(encoded: &str) -> Result<Self, AddressFromEncodedError> {
         let decoded = base58check::decode(encoded).map_err(AddressFromEncodedError::DecodeError)?;
 

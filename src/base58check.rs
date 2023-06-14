@@ -115,8 +115,8 @@ pub fn decode(encoded: &str) -> Result<DecodeResult, DecodeError> {
 
     if &hash[..4] != checksum {
         return Err(DecodeError::ChecksumMismatch {
-            expected: [0; 4],
-            actual: [0; 4],
+            expected: checksum.try_into().unwrap(),
+            actual: hash[..4].try_into().unwrap(),
         });
     }
 

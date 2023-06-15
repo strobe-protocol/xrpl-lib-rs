@@ -6,7 +6,7 @@ use crate::{base58check, crypto::PrivateKey};
 const SEED_VERSION: u8 = 33;
 const SEED_LENGTH: usize = 16;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Secret {
     inner: [u8; SEED_LENGTH],
 }

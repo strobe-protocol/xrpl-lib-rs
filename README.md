@@ -7,3 +7,5 @@ XRP Ledger library in Rust.
 - [x] WebAssembly support
 - [x] Base58Check encoding/decoding
 - [x] Secp256k1 key support
+- [ ] Supported transaction types
+  - [x] `Payment` (XRP only)

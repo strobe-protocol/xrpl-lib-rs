@@ -32,6 +32,10 @@ pub enum TransactionResultClaimedCostOnly {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TransactionResultFailure {
+    /// The sequence number of the transaction is lower than the current sequence number of the
+    /// account sending the transaction.
+    #[serde(rename = "tefPAST_SEQ")]
+    PastSeq,
     // TODO: add variants
 }
 

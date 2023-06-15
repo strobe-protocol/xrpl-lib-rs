@@ -13,3 +13,5 @@ pub mod hash;
 pub mod testnet_faucet;
 
 pub mod transaction;
+
+pub mod rpc;

@@ -1,3 +1,4 @@
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 use crate::{base58check, crypto::PrivateKey};
@@ -25,6 +26,14 @@ pub enum SecretFromEncodedError {
 pub struct SecretFromSliceError(usize);
 
 impl Secret {
+    pub fn from_random() -> Self {
+        let mut rng = StdRng::from_entropy();
+        let mut buffer = [0u8; SEED_LENGTH];
+        rng.fill(&mut buffer);
+
+        Self::from_byte_array(buffer)
+    }
+
     pub fn from_byte_array(bytes: [u8; SEED_LENGTH]) -> Self {
         Self { inner: bytes }
     }

@@ -7,6 +7,12 @@ pub struct Hash {
     inner: [u8; HASH_LENGTH],
 }
 
+impl AsRef<[u8]> for Hash {
+    fn as_ref(&self) -> &[u8] {
+        &self.inner
+    }
+}
+
 impl From<[u8; HASH_LENGTH]> for Hash {
     fn from(value: [u8; HASH_LENGTH]) -> Self {
         Self { inner: value }

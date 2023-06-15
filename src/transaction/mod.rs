@@ -150,6 +150,18 @@ impl UnsignedSetHookTransaction {
 }
 
 impl SignedPaymentTransaction {
+    pub fn hash(&self) -> Hash {
+        let mut buffer = vec![0x54, 0x58, 0x4e, 0x00];
+        buffer.extend_from_slice(&self.to_bytes());
+
+        let mut hasher = sha2::Sha512::new();
+        hasher.update(&buffer);
+        let hash = hasher.finalize();
+
+        let half_hash: [u8; 32] = hash[..32].try_into().unwrap();
+        half_hash.into()
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         let fields: Vec<RippleFieldKind> = vec![
             TransactionTypeField(UInt16Type(0)).into(),
@@ -183,6 +195,18 @@ impl SignedPaymentTransaction {
 }
 
 impl SignedSetHookTransaction {
+    pub fn hash(&self) -> Hash {
+        let mut buffer = vec![0x54, 0x58, 0x4e, 0x00];
+        buffer.extend_from_slice(&self.to_bytes());
+
+        let mut hasher = sha2::Sha512::new();
+        hasher.update(&buffer);
+        let hash = hasher.finalize();
+
+        let half_hash: [u8; 32] = hash[..32].try_into().unwrap();
+        half_hash.into()
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         let fields: Vec<RippleFieldKind> = vec![
             TransactionTypeField(UInt16Type(0x16)).into(),

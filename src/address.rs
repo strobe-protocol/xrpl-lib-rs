@@ -5,6 +5,7 @@ use crate::base58check;
 const ADDRESS_VERSION: u8 = 0;
 const ADDRESS_LENGTH: usize = 20;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Address {
     inner: [u8; ADDRESS_LENGTH],
 }

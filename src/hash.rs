@@ -2,9 +2,21 @@ use serde::{Deserialize, Serialize};
 
 const HASH_LENGTH: usize = 32;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Hash {
     inner: [u8; HASH_LENGTH],
+}
+
+impl From<[u8; HASH_LENGTH]> for Hash {
+    fn from(value: [u8; HASH_LENGTH]) -> Self {
+        Self { inner: value }
+    }
+}
+
+impl From<Hash> for [u8; HASH_LENGTH] {
+    fn from(value: Hash) -> Self {
+        value.inner
+    }
 }
 
 impl Serialize for Hash {

@@ -1,18 +1,39 @@
-use k256::{elliptic_curve::ScalarPrimitive, Secp256k1, SecretKey};
+use k256::{ecdsa::SigningKey, elliptic_curve::ScalarPrimitive, Secp256k1, SecretKey};
 use ripemd::Ripemd160;
 use sha2::{Digest, Sha256, Sha512};
 
-use crate::{address::Address, secret::Secret};
+use crate::{address::Address, hash::Hash, secret::Secret};
 
+#[derive(Debug, Clone)]
 pub struct PrivateKey {
     inner: SecretKey,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct PublicKey {
     inner: k256::PublicKey,
 }
 
+#[derive(Debug, Clone)]
+pub struct Signature {
+    r: [u8; 32],
+    s: [u8; 32],
+}
+
 impl PrivateKey {
+    pub fn sign_hash(&self, hash: &Hash) -> Signature {
+        let hash_bytes: [u8; 32] = (*hash).into();
+
+        let key: SigningKey = self.inner.clone().into();
+
+        // TODO: check whether unwraps are safe here
+        let (sig, _) = key.sign_prehash_recoverable(&hash_bytes).unwrap();
+        let r = sig.r().to_bytes().try_into().unwrap();
+        let s = sig.s().to_bytes().try_into().unwrap();
+
+        Signature { r, s }
+    }
+
     pub fn public_key(&self) -> PublicKey {
         PublicKey {
             inner: self.inner.public_key(),
@@ -42,6 +63,40 @@ impl PublicKey {
 
     pub fn to_compressed_bytes_be(&self) -> [u8; 33] {
         self.inner.to_sec1_bytes().as_ref().try_into().unwrap()
+    }
+}
+
+impl Signature {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut buffer = vec![0x30];
+
+        let r_bytes = Self::to_signed_bytes(&self.r);
+        let s_bytes = Self::to_signed_bytes(&self.s);
+
+        buffer.push((2 + r_bytes.len() + 2 + s_bytes.len()) as u8);
+
+        buffer.push(0x02);
+        buffer.push(r_bytes.len() as u8);
+
+        buffer.extend_from_slice(&r_bytes);
+
+        buffer.push(0x02);
+        buffer.push(s_bytes.len() as u8);
+
+        buffer.extend_from_slice(&s_bytes);
+
+        buffer
+    }
+
+    fn to_signed_bytes(bytes: &[u8]) -> Vec<u8> {
+        if bytes[0] < 0b10000000u8 {
+            bytes.to_vec()
+        } else {
+            let mut buffer = Vec::with_capacity(bytes.len() + 1);
+            buffer.push(0);
+            buffer.extend_from_slice(bytes);
+            buffer
+        }
     }
 }
 

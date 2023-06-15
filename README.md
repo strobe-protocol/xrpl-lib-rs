@@ -12,3 +12,4 @@ XRP Ledger library in Rust.
   - [x] `account_info`
 - [ ] Supported transaction types
   - [x] `Payment` (XRP only)
+  - [x] `SetHook` (create only)

@@ -1,18 +1,24 @@
 use byteorder::{BigEndian, WriteBytesExt};
 
-use crate::address::Address;
+use crate::{address::Address, hash::Hash};
 
 #[derive(Clone)]
 pub enum RippleFieldKind {
     TransactionType(TransactionTypeField),
+    HookApiVersion(HookApiVersionField),
     NetworkId(NetworkIdField),
     Sequence(SequenceField),
+    HookOn(HookOnField),
+    HookNamespace(HookNamespaceField),
     Amount(AmountField),
     Fee(FeeField),
     SigningPubKey(SigningPubKeyField),
     TxnSignature(TxnSignatureField),
+    CreateCode(CreateCodeField),
     Account(AccountField),
     Destination(DestinationField),
+    Hook(HookField),
+    Hooks(HooksField),
 }
 
 #[derive(Clone)]
@@ -20,18 +26,30 @@ pub struct UInt16Type(pub u16);
 #[derive(Clone)]
 pub struct UInt32Type(pub u32);
 #[derive(Clone)]
+pub struct Hash256Type(pub Hash);
+#[derive(Clone)]
 pub struct AmountType(pub u64);
 #[derive(Clone)]
 pub struct BlobType(pub Vec<u8>);
 #[derive(Clone)]
 pub struct AccountIDType(pub Address);
+#[derive(Clone)]
+pub struct STObjectType(pub Vec<RippleFieldKind>);
+#[derive(Clone)]
+pub struct STArrayType<T>(pub Vec<T>);
 
 #[derive(Clone)]
 pub struct TransactionTypeField(pub UInt16Type);
 #[derive(Clone)]
+pub struct HookApiVersionField(pub UInt16Type);
+#[derive(Clone)]
 pub struct NetworkIdField(pub UInt32Type);
 #[derive(Clone)]
 pub struct SequenceField(pub UInt32Type);
+#[derive(Clone)]
+pub struct HookOnField(pub Hash256Type);
+#[derive(Clone)]
+pub struct HookNamespaceField(pub Hash256Type);
 #[derive(Clone)]
 pub struct AmountField(pub AmountType);
 #[derive(Clone)]
@@ -41,9 +59,15 @@ pub struct SigningPubKeyField(pub BlobType);
 #[derive(Clone)]
 pub struct TxnSignatureField(pub BlobType);
 #[derive(Clone)]
+pub struct CreateCodeField(pub BlobType);
+#[derive(Clone)]
 pub struct AccountField(pub AccountIDType);
 #[derive(Clone)]
 pub struct DestinationField(pub AccountIDType);
+#[derive(Clone)]
+pub struct HookField(pub STObjectType);
+#[derive(Clone)]
+pub struct HooksField(pub STArrayType<HookField>);
 
 #[derive(Debug)]
 struct FieldId {
@@ -170,14 +194,20 @@ impl RippleFieldKind {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             RippleFieldKind::TransactionType(inner) => inner.to_bytes(),
+            RippleFieldKind::HookApiVersion(inner) => inner.to_bytes(),
             RippleFieldKind::NetworkId(inner) => inner.to_bytes(),
             RippleFieldKind::Sequence(inner) => inner.to_bytes(),
+            RippleFieldKind::HookOn(inner) => inner.to_bytes(),
+            RippleFieldKind::HookNamespace(inner) => inner.to_bytes(),
             RippleFieldKind::Amount(inner) => inner.to_bytes(),
             RippleFieldKind::Fee(inner) => inner.to_bytes(),
             RippleFieldKind::SigningPubKey(inner) => inner.to_bytes(),
             RippleFieldKind::TxnSignature(inner) => inner.to_bytes(),
+            RippleFieldKind::CreateCode(inner) => inner.to_bytes(),
             RippleFieldKind::Account(inner) => inner.to_bytes(),
             RippleFieldKind::Destination(inner) => inner.to_bytes(),
+            RippleFieldKind::Hook(inner) => inner.to_bytes(),
+            RippleFieldKind::Hooks(inner) => inner.to_bytes(),
         }
     }
 }
@@ -204,6 +234,16 @@ impl RippleType for UInt32Type {
         buffer
     }
 }
+impl RippleType for Hash256Type {
+    fn type_code() -> u16 {
+        5
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let bytes: [u8; 32] = self.0.into();
+        bytes.to_vec()
+    }
+}
 impl RippleType for AmountType {
     fn type_code() -> u16 {
         6
@@ -223,12 +263,25 @@ impl RippleType for BlobType {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        if self.0.len() > 192 {
+        let mut buffer = vec![];
+
+        let len = self.0.len();
+
+        if len <= 192 {
+            buffer.push(len as u8);
+        } else if len <= 12480 {
+            let len = len - 193;
+
+            let quotient = len / 256;
+            let remainder = len - 256 * quotient;
+
+            buffer.push((193 + quotient) as u8);
+            buffer.push(remainder as u8);
+        } else {
             todo!("handle long blob");
         }
 
-        let mut buffer = vec![self.0.len() as u8];
-        buffer.append(&mut self.0.clone());
+        buffer.extend_from_slice(&self.0);
         buffer
     }
 }
@@ -245,12 +298,62 @@ impl RippleType for AccountIDType {
         buffer
     }
 }
+impl RippleType for STObjectType {
+    fn type_code() -> u16 {
+        14
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut buffer = vec![];
+
+        // TODO: sort fields
+
+        for element in self.0.iter() {
+            buffer.append(&mut element.to_bytes());
+        }
+
+        buffer.push(0xe1);
+
+        buffer
+    }
+}
+impl<T> RippleType for STArrayType<T>
+where
+    T: RippleField,
+{
+    fn type_code() -> u16 {
+        15
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut buffer = vec![];
+
+        for element in self.0.iter() {
+            buffer.append(&mut element.to_bytes());
+        }
+
+        buffer.push(0xf1);
+
+        buffer
+    }
+}
 
 impl RippleField for TransactionTypeField {
     type Type = UInt16Type;
 
     fn field_code() -> u8 {
         2
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
+impl RippleField for HookApiVersionField {
+    type Type = UInt16Type;
+
+    fn field_code() -> u8 {
+        20
     }
 
     fn value_ref(&self) -> &Self::Type {
@@ -273,6 +376,28 @@ impl RippleField for SequenceField {
 
     fn field_code() -> u8 {
         4
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
+impl RippleField for HookOnField {
+    type Type = Hash256Type;
+
+    fn field_code() -> u8 {
+        20
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
+impl RippleField for HookNamespaceField {
+    type Type = Hash256Type;
+
+    fn field_code() -> u8 {
+        32
     }
 
     fn value_ref(&self) -> &Self::Type {
@@ -323,6 +448,17 @@ impl RippleField for TxnSignatureField {
         &self.0
     }
 }
+impl RippleField for CreateCodeField {
+    type Type = BlobType;
+
+    fn field_code() -> u8 {
+        11
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
 impl RippleField for AccountField {
     type Type = AccountIDType;
 
@@ -345,10 +481,37 @@ impl RippleField for DestinationField {
         &self.0
     }
 }
+impl RippleField for HookField {
+    type Type = STObjectType;
+
+    fn field_code() -> u8 {
+        14
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
+impl RippleField for HooksField {
+    type Type = STArrayType<HookField>;
+
+    fn field_code() -> u8 {
+        11
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
 
 impl From<TransactionTypeField> for RippleFieldKind {
     fn from(value: TransactionTypeField) -> Self {
         Self::TransactionType(value)
+    }
+}
+impl From<HookApiVersionField> for RippleFieldKind {
+    fn from(value: HookApiVersionField) -> Self {
+        Self::HookApiVersion(value)
     }
 }
 impl From<NetworkIdField> for RippleFieldKind {
@@ -359,6 +522,16 @@ impl From<NetworkIdField> for RippleFieldKind {
 impl From<SequenceField> for RippleFieldKind {
     fn from(value: SequenceField) -> Self {
         Self::Sequence(value)
+    }
+}
+impl From<HookOnField> for RippleFieldKind {
+    fn from(value: HookOnField) -> Self {
+        Self::HookOn(value)
+    }
+}
+impl From<HookNamespaceField> for RippleFieldKind {
+    fn from(value: HookNamespaceField) -> Self {
+        Self::HookNamespace(value)
     }
 }
 impl From<AmountField> for RippleFieldKind {
@@ -381,6 +554,11 @@ impl From<TxnSignatureField> for RippleFieldKind {
         Self::TxnSignature(value)
     }
 }
+impl From<CreateCodeField> for RippleFieldKind {
+    fn from(value: CreateCodeField) -> Self {
+        Self::CreateCode(value)
+    }
+}
 impl From<AccountField> for RippleFieldKind {
     fn from(value: AccountField) -> Self {
         Self::Account(value)
@@ -389,5 +567,15 @@ impl From<AccountField> for RippleFieldKind {
 impl From<DestinationField> for RippleFieldKind {
     fn from(value: DestinationField) -> Self {
         Self::Destination(value)
+    }
+}
+impl From<HookField> for RippleFieldKind {
+    fn from(value: HookField) -> Self {
+        Self::Hook(value)
+    }
+}
+impl From<HooksField> for RippleFieldKind {
+    fn from(value: HooksField) -> Self {
+        Self::Hooks(value)
     }
 }

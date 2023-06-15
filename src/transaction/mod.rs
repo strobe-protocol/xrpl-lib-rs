@@ -29,9 +29,40 @@ pub struct UnsignedPaymentTransaction {
 }
 
 #[derive(Debug, Clone)]
+pub struct UnsignedSetHookTransaction {
+    //
+    // Common tx fields
+    //
+    pub account: Address,
+    pub network_id: u32,
+    pub fee: u64,
+    pub sequence: u32,
+    pub signing_pub_key: PublicKey,
+    //
+    // SetHook specific fields
+    //
+    pub hooks: Vec<Hook>,
+}
+
+#[derive(Debug, Clone)]
 pub struct SignedPaymentTransaction {
     pub payload: UnsignedPaymentTransaction,
     pub signature: Signature,
+}
+
+#[derive(Debug, Clone)]
+pub struct SignedSetHookTransaction {
+    pub payload: UnsignedSetHookTransaction,
+    pub signature: Signature,
+}
+
+#[derive(Debug, Clone)]
+pub struct Hook {
+    pub hook_api_version: u16,
+    // flags
+    pub hook_on: Hash,
+    pub hook_namespace: Hash,
+    pub create_code: Vec<u8>,
 }
 
 impl UnsignedPaymentTransaction {
@@ -44,7 +75,7 @@ impl UnsignedPaymentTransaction {
 
     pub fn sig_hash(&self) -> Hash {
         let fields: Vec<RippleFieldKind> = vec![
-            TransactionTypeField(UInt16Type(0)).into(),
+            TransactionTypeField(UInt16Type(0x00)).into(),
             NetworkIdField(UInt32Type(self.network_id)).into(),
             SequenceField(UInt32Type(self.sequence)).into(),
             AmountField(AmountType(self.amount)).into(),
@@ -55,6 +86,49 @@ impl UnsignedPaymentTransaction {
             .into(),
             AccountField(AccountIDType(self.account)).into(),
             DestinationField(AccountIDType(self.destination)).into(),
+        ];
+
+        // TODO: sort fields
+
+        let mut buffer = vec![0x53, 0x54, 0x58, 0x00];
+
+        for field in fields.iter() {
+            let mut current = field.to_bytes();
+            buffer.append(&mut current);
+        }
+
+        let mut hasher = Sha512::new();
+        hasher.update(&buffer);
+        let hash = hasher.finalize();
+
+        let half_hash: [u8; 32] = hash[..32].try_into().unwrap();
+        half_hash.into()
+    }
+}
+
+impl UnsignedSetHookTransaction {
+    pub fn sign(&self, key: &PrivateKey) -> SignedSetHookTransaction {
+        SignedSetHookTransaction {
+            payload: self.clone(),
+            signature: key.sign_hash(&self.sig_hash()),
+        }
+    }
+
+    pub fn sig_hash(&self) -> Hash {
+        let fields: Vec<RippleFieldKind> = vec![
+            TransactionTypeField(UInt16Type(0x16)).into(),
+            NetworkIdField(UInt32Type(self.network_id)).into(),
+            SequenceField(UInt32Type(self.sequence)).into(),
+            FeeField(AmountType(self.fee)).into(),
+            SigningPubKeyField(BlobType(
+                self.signing_pub_key.to_compressed_bytes_be().to_vec(),
+            ))
+            .into(),
+            AccountField(AccountIDType(self.account)).into(),
+            HooksField(STArrayType(
+                self.hooks.iter().map(|item| item.into()).collect(),
+            ))
+            .into(),
         ];
 
         // TODO: sort fields
@@ -105,6 +179,52 @@ impl SignedPaymentTransaction {
         }
 
         buffer
+    }
+}
+
+impl SignedSetHookTransaction {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let fields: Vec<RippleFieldKind> = vec![
+            TransactionTypeField(UInt16Type(0x16)).into(),
+            NetworkIdField(UInt32Type(self.payload.network_id)).into(),
+            SequenceField(UInt32Type(self.payload.sequence)).into(),
+            FeeField(AmountType(self.payload.fee)).into(),
+            SigningPubKeyField(BlobType(
+                self.payload
+                    .signing_pub_key
+                    .to_compressed_bytes_be()
+                    .to_vec(),
+            ))
+            .into(),
+            TxnSignatureField(BlobType(self.signature.to_bytes().to_vec())).into(),
+            AccountField(AccountIDType(self.payload.account)).into(),
+            HooksField(STArrayType(
+                self.payload.hooks.iter().map(|item| item.into()).collect(),
+            ))
+            .into(),
+        ];
+
+        // TODO: sort fields
+
+        let mut buffer = vec![];
+
+        for field in fields.iter() {
+            let mut current = field.to_bytes();
+            buffer.append(&mut current);
+        }
+
+        buffer
+    }
+}
+
+impl From<&Hook> for HookField {
+    fn from(value: &Hook) -> Self {
+        HookField(STObjectType(vec![
+            HookApiVersionField(UInt16Type(value.hook_api_version)).into(),
+            HookOnField(Hash256Type(value.hook_on)).into(),
+            HookNamespaceField(Hash256Type(value.hook_namespace)).into(),
+            CreateCodeField(BlobType(value.create_code.clone())).into(),
+        ]))
     }
 }
 

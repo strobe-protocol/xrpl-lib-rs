@@ -2,8 +2,11 @@
 
 use url::Url;
 use xrpl_lib::{
-    address::Address, rpc::HttpRpcClient, testnet_faucet::TestnetFaucet,
+    address::Address,
+    rpc::HttpRpcClient,
+    testnet_faucet::TestnetFaucet,
     transaction::UnsignedPaymentTransaction,
+    transaction_result::{TransactionResult, TransactionResultSuccess},
 };
 
 #[tokio::test]
@@ -34,5 +37,8 @@ async fn testnet_payment() {
 
     let result = rpc.submit(&signed_payment.to_bytes()).await.unwrap();
 
-    dbg!(result);
+    assert_eq!(
+        TransactionResult::Success(TransactionResultSuccess::Success),
+        result.engine_result
+    );
 }

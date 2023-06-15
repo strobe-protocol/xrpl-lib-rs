@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TransactionResult {
     /// The transaction did not achieve its intended purpose, but the transaction cost was
@@ -25,12 +25,12 @@ pub enum TransactionResult {
     Success(TransactionResultSuccess),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionResultClaimedCostOnly {
     // TODO: add variants
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionResultFailure {
     /// The sequence number of the transaction is lower than the current sequence number of the
     /// account sending the transaction.
@@ -39,22 +39,22 @@ pub enum TransactionResultFailure {
     // TODO: add variants
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionResultLocalError {
     // TODO: add variants
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionResultMalformedTransaction {
     // TODO: add variants
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionResultRetry {
     // TODO: add variants
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionResultSuccess {
     /// The transaction was applied and forwarded to other servers. If this appears in a validated
     /// ledger, then the transaction's success is final.

@@ -62,6 +62,7 @@ struct SubmitRequestParams<'a> {
 #[derive(Debug, Serialize)]
 struct AccountInfoRequestParam {
     account: Address,
+    ledger_index: &'static str,
 }
 
 impl HttpRpcClient {
@@ -87,7 +88,10 @@ impl HttpRpcClient {
     ) -> Result<AccountInfoResult, HttpRpcClientError> {
         self.send_rpc_request::<_, AccountInfoResult>(
             RpcMethod::AccountInfo,
-            &AccountInfoRequestParam { account },
+            &AccountInfoRequestParam {
+                account,
+                ledger_index: "current",
+            },
         )
         .await
     }

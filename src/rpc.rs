@@ -1,8 +1,8 @@
 use reqwest::Client as HttpClient;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use url::Url;
 
-use crate::transaction_result::TransactionResult;
+use crate::{address::Address, transaction_result::TransactionResult};
 
 #[derive(Debug)]
 pub struct HttpRpcClient {
@@ -24,6 +24,17 @@ pub struct SubmitResult {
     pub engine_result: TransactionResult,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AccountInfoResult {
+    pub account_data: AccountData,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct AccountData {
+    pub sequence: u32,
+}
+
 #[derive(Debug, Serialize)]
 struct RpcRequest<T> {
     method: RpcMethod,
@@ -39,12 +50,18 @@ struct RpcResponse<T> {
 #[serde(rename_all = "snake_case")]
 enum RpcMethod {
     Submit,
+    AccountInfo,
 }
 
 #[derive(Debug, Serialize)]
 struct SubmitRequestParams<'a> {
     #[serde(serialize_with = "serialize_byte_slice_as_upper_hex")]
     tx_blob: &'a [u8],
+}
+
+#[derive(Debug, Serialize)]
+struct AccountInfoRequestParam {
+    account: Address,
 }
 
 impl HttpRpcClient {
@@ -57,9 +74,36 @@ impl HttpRpcClient {
     }
 
     pub async fn submit(&self, tx_blob: &[u8]) -> Result<SubmitResult, HttpRpcClientError> {
+        self.send_rpc_request::<_, SubmitResult>(
+            RpcMethod::Submit,
+            &SubmitRequestParams { tx_blob },
+        )
+        .await
+    }
+
+    pub async fn account_info(
+        &self,
+        account: Address,
+    ) -> Result<AccountInfoResult, HttpRpcClientError> {
+        self.send_rpc_request::<_, AccountInfoResult>(
+            RpcMethod::AccountInfo,
+            &AccountInfoRequestParam { account },
+        )
+        .await
+    }
+
+    async fn send_rpc_request<REQ, RES>(
+        &self,
+        method: RpcMethod,
+        request: &REQ,
+    ) -> Result<RES, HttpRpcClientError>
+    where
+        REQ: Serialize,
+        RES: DeserializeOwned,
+    {
         let request = self.client.post(self.url.clone()).json(&RpcRequest {
-            method: RpcMethod::Submit,
-            params: [SubmitRequestParams { tx_blob }],
+            method,
+            params: [request],
         });
 
         let response = request
@@ -72,7 +116,7 @@ impl HttpRpcClient {
             return Err(HttpRpcClientError::UnsuccessfulStatusCode(status_code));
         }
 
-        let body: RpcResponse<SubmitResult> = response
+        let body: RpcResponse<RES> = response
             .json()
             .await
             .map_err(HttpRpcClientError::HttpError)?;

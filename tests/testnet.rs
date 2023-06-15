@@ -27,7 +27,7 @@ async fn testnet_payment() {
     let unsigned_payment = UnsignedPaymentTransaction {
         account: new_account.address,
         network_id: 21338,
-        fee: 20,
+        fee: 1000000000,
         sequence: account_info.account_data.sequence,
         signing_pub_key: private_key.public_key(),
         amount: 9000000000,

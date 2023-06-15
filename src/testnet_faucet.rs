@@ -13,6 +13,8 @@ pub struct TestnetFaucet {
 pub enum TestnetFaucetError {
     #[error(transparent)]
     HttpError(reqwest::Error),
+    #[error("{0}")]
+    ErrorMessage(String),
 }
 
 #[derive(Debug)]
@@ -21,14 +23,26 @@ pub struct NewAccountResult {
     pub address: Address,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum NewAccountResponse {
+    Success(NewAccountSuccess),
+    Error(ErrorResponse),
+}
+
 #[allow(unused)]
 #[derive(Debug, Deserialize)]
-struct NewAccountResponse {
-    pub address: Address,
-    pub secret: Secret,
-    pub xrp: u64,
-    pub hash: Hash,
-    pub code: TransactionResult,
+struct NewAccountSuccess {
+    address: Address,
+    secret: Secret,
+    xrp: u64,
+    hash: Hash,
+    code: TransactionResult,
+}
+
+#[derive(Debug, Deserialize)]
+struct ErrorResponse {
+    error: String,
 }
 
 impl TestnetFaucet {
@@ -62,9 +76,12 @@ impl TestnetFaucet {
             .await
             .map_err(TestnetFaucetError::HttpError)?;
 
-        Ok(NewAccountResult {
-            secret: response.secret,
-            address: response.address,
-        })
+        match response {
+            NewAccountResponse::Success(value) => Ok(NewAccountResult {
+                secret: value.secret,
+                address: value.address,
+            }),
+            NewAccountResponse::Error(err) => Err(TestnetFaucetError::ErrorMessage(err.error)),
+        }
     }
 }

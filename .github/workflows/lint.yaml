@@ -14,10 +14,10 @@ jobs:
       - name: "Checkout source code"
         uses: "actions/checkout@v3"
 
-      - name: "Use Rust 1.70.0"
+      - name: "Use Rust nightly"
         uses: "actions-rs/toolchain@v1"
         with:
-          toolchain: "1.70.0"
+          toolchain: nightly
           profile: "minimal"
           components: "clippy,rustfmt"
           override: true
@@ -37,7 +37,7 @@ jobs:
 
       - name: "Check Rust format"
         run: |
-          cargo fmt --all -- --check
+          cargo +nightly fmt --all -- --check
 
       - name: "Run Clippy lints"
         run: |

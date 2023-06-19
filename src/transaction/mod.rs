@@ -15,7 +15,6 @@ mod field;
 pub struct UnsignedPaymentTransaction {
     //
     // Common tx fields
-    //
     pub account: Address,
     pub network_id: u32,
     pub fee: u64,
@@ -23,7 +22,6 @@ pub struct UnsignedPaymentTransaction {
     pub signing_pub_key: PublicKey,
     //
     // Payment specific fields
-    //
     pub amount: u64,
     pub destination: Address,
 }
@@ -32,7 +30,6 @@ pub struct UnsignedPaymentTransaction {
 pub struct UnsignedSetHookTransaction {
     //
     // Common tx fields
-    //
     pub account: Address,
     pub network_id: u32,
     pub fee: u64,
@@ -40,7 +37,6 @@ pub struct UnsignedSetHookTransaction {
     pub signing_pub_key: PublicKey,
     //
     // SetHook specific fields
-    //
     pub hooks: Vec<Hook>,
 }
 

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 const HASH_LENGTH: usize = 32;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Hash {
     inner: [u8; HASH_LENGTH],
 }

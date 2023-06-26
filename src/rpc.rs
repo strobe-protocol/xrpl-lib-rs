@@ -16,11 +16,11 @@ pub enum HttpRpcClientError {
     HttpError(reqwest::Error),
     #[error("unsuccessful status code: {0}")]
     UnsuccessfulStatusCode(reqwest::StatusCode),
-    #[error("universal error")]
+    #[error(transparent)]
     UniversalError(UniversalXrplError),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, thiserror::Error)]
 pub enum UniversalXrplError {
     /// The server is amendment blocked and needs to be updated to the latest version to stay
     /// synced with the XRP Ledger network.
@@ -48,6 +48,12 @@ pub enum UniversalXrplError {
     /// The request does not contain a command that the rippled server recognizes.
     #[serde(rename = "unknownCmd")]
     UnknownCmd,
+}
+
+impl std::fmt::Display for UniversalXrplError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "xrp ledger universal error: {:?}", self)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -113,6 +119,7 @@ pub enum SubmitError {
     #[serde(rename = "notSupported")]
     NotSupported,
 }
+
 #[derive(Debug, Deserialize)]
 pub struct TxJson {
     pub hash: Hash,
@@ -248,8 +255,8 @@ pub enum LedgerIndex {
 }
 
 #[derive(Debug, Serialize)]
-pub struct LedgerRequestParams {
-    pub ledger_index: LedgerIndex,
+struct LedgerRequestParams {
+    ledger_index: LedgerIndex,
 }
 
 #[derive(Debug, Serialize)]
@@ -259,13 +266,13 @@ struct SubmitRequestParams<'a> {
 }
 
 #[derive(Debug, Serialize)]
-struct AccountInfoRequestParam {
+struct AccountInfoRequestParams {
     account: Address,
     ledger_index: LedgerIndex,
 }
 
 #[derive(Debug, Serialize)]
-struct TxRequestParam {
+struct TxRequestParams {
     transaction: Hash,
     min_ledger: u32,
     max_ledger: u32,
@@ -295,7 +302,7 @@ impl HttpRpcClient {
     ) -> Result<AccountInfoResult, HttpRpcClientError> {
         self.send_rpc_request::<_, AccountInfoResult>(
             RpcMethod::AccountInfo,
-            &AccountInfoRequestParam {
+            &AccountInfoRequestParams {
                 account,
                 ledger_index,
             },
@@ -311,7 +318,7 @@ impl HttpRpcClient {
     ) -> Result<TxResult, HttpRpcClientError> {
         self.send_rpc_request::<_, TxResult>(
             RpcMethod::Tx,
-            &TxRequestParam {
+            &TxRequestParams {
                 transaction,
                 min_ledger,
                 max_ledger,

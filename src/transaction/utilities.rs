@@ -2,7 +2,7 @@
 
 use tokio::time::{sleep, Duration};
 
-use crate::rpc::{HttpRpcClient, SubmitSuccess, TxError, TxResult, TxSuccess};
+use crate::rpc::{HttpRpcClient, HttpRpcClientError, SubmitSuccess, TxError, TxResult, TxSuccess};
 
 // Approximate time for a ledger to close, in milliseconds
 const LEDGER_CLOSE_DURATION_MS: u64 = 3000;
@@ -14,6 +14,7 @@ const LAST_VALIDATED_LEDGER_OFFSET: u32 = 4;
 pub enum WaitForTransactionError {
     Timeout,
     TxError(TxError),
+    HttpRpcClientError(HttpRpcClientError),
 }
 
 pub async fn wait_for_transaction(
@@ -34,7 +35,7 @@ pub async fn wait_for_transaction(
                 create_last_ledger_sequence(transaction_submit_result.validated_ledger_index),
             )
             .await
-            .unwrap_or_else(|err| panic!("tx command failed with: {}", err));
+            .map_err(WaitForTransactionError::HttpRpcClientError)?;
 
         match tx {
             TxResult::Success(success) => {

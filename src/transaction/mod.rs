@@ -291,6 +291,7 @@ mod tests {
         };
 
         let signed_payment = unsigned_payment.sign(&private_key);
+
         assert_eq!(EXPECTED_ENCODED, signed_payment.to_bytes());
     }
 }

@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 use tokio::time::{sleep, Duration};
 
 use crate::rpc::{HttpRpcClient, HttpRpcClientError, SubmitSuccess, TxError, TxResult, TxSuccess};

@@ -9,8 +9,6 @@ use crate::{
 
 mod field;
 
-pub mod utilities;
-
 // TODO: support `flags`, `memos`, and `hook_parameters`
 // TODO: support non-XRP payments (`amount`)
 #[derive(Debug, Clone)]

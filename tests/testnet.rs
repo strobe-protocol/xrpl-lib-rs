@@ -12,10 +12,8 @@ use xrpl_lib::{
         LedgerResult, SubmitResult,
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
-    transaction::{
-        utilities::{self, create_last_ledger_sequence},
-        Hook, UnsignedPaymentTransaction, UnsignedSetHookTransaction,
-    },
+    transaction::{Hook, UnsignedPaymentTransaction, UnsignedSetHookTransaction},
+    util::{create_last_ledger_sequence, wait_for_transaction},
 };
 
 struct CommonSetup {
@@ -147,10 +145,9 @@ async fn testnet_payment() {
 
     match payment_result {
         SubmitResult::Success(transaction_result_success) => {
-            let validated_tx =
-                utilities::wait_for_transaction(&transaction_result_success, &setup.rpc)
-                    .await
-                    .expect("failed to wait for transaction");
+            let validated_tx = wait_for_transaction(&transaction_result_success, &setup.rpc)
+                .await
+                .expect("failed to wait for transaction");
             assert_eq!(signed_tx.hash(), validated_tx.hash);
             assert_eq!(setup.address, validated_tx.account);
         }
@@ -195,10 +192,9 @@ async fn testnet_set_hook() {
 
     match set_hook_result {
         SubmitResult::Success(transaction_result_success) => {
-            let validated_tx =
-                utilities::wait_for_transaction(&transaction_result_success, &setup.rpc)
-                    .await
-                    .expect("failed to wait for transaction");
+            let validated_tx = wait_for_transaction(&transaction_result_success, &setup.rpc)
+                .await
+                .expect("failed to wait for transaction");
             assert_eq!(signed_tx.hash(), validated_tx.hash);
             assert_eq!(setup.address, validated_tx.account);
         }

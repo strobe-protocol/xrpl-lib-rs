@@ -50,12 +50,6 @@ pub enum UniversalXrplError {
     UnknownCmd,
 }
 
-impl std::fmt::Display for UniversalXrplError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "xrp ledger universal error: {:?}", self)
-    }
-}
-
 #[derive(Debug, Deserialize)]
 pub enum LedgerError {
     /// The ledger specified by the ledger_hash or ledger_index does not exist, or it does exist
@@ -207,6 +201,27 @@ pub enum TxResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LedgerIndexShortcut {
+    Current,
+    Closed,
+    Validated,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum LedgerIndex {
+    Hash(Hash),
+    Index(u32),
+    Shortcut(LedgerIndexShortcut),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RpcError<T> {
+    pub error: T,
+}
+
+#[derive(Debug, Serialize)]
 struct RpcRequest<T> {
     method: RpcMethod,
     params: T,
@@ -215,11 +230,6 @@ struct RpcRequest<T> {
 #[derive(Debug, Deserialize)]
 struct RpcBaseResponse<T> {
     result: T,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RpcError<T> {
-    pub error: T,
 }
 
 #[derive(Debug, Deserialize)]
@@ -236,22 +246,6 @@ enum RpcMethod {
     AccountInfo,
     Tx,
     Ledger,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LedgerIndexShortcut {
-    Current,
-    Closed,
-    Validated,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub enum LedgerIndex {
-    Hash(Hash),
-    Index(u32),
-    Shortcut(LedgerIndexShortcut),
 }
 
 #[derive(Debug, Serialize)]
@@ -371,6 +365,12 @@ impl HttpRpcClient {
             RpcResponse::Success(body) => Ok(body.result),
             RpcResponse::Error(body) => Err(HttpRpcClientError::UniversalError(body.result.error)),
         }
+    }
+}
+
+impl std::fmt::Display for UniversalXrplError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "xrp ledger universal error: {:?}", self)
     }
 }
 

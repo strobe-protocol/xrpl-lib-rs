@@ -145,9 +145,10 @@ async fn testnet_payment() {
 
     match payment_result {
         SubmitResult::Success(transaction_result_success) => {
-            let validated_tx = wait_for_transaction(&transaction_result_success, &setup.rpc)
-                .await
-                .expect("failed to wait for transaction");
+            let validated_tx =
+                wait_for_transaction(transaction_result_success.tx_json.hash, &setup.rpc)
+                    .await
+                    .expect("failed to wait for transaction");
             assert_eq!(signed_tx.hash(), validated_tx.hash);
             assert_eq!(setup.address, validated_tx.account);
         }
@@ -192,9 +193,10 @@ async fn testnet_set_hook() {
 
     match set_hook_result {
         SubmitResult::Success(transaction_result_success) => {
-            let validated_tx = wait_for_transaction(&transaction_result_success, &setup.rpc)
-                .await
-                .expect("failed to wait for transaction");
+            let validated_tx =
+                wait_for_transaction(transaction_result_success.tx_json.hash, &setup.rpc)
+                    .await
+                    .expect("failed to wait for transaction");
             assert_eq!(signed_tx.hash(), validated_tx.hash);
             assert_eq!(setup.address, validated_tx.account);
         }

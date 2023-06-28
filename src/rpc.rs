@@ -268,8 +268,6 @@ struct AccountInfoRequestParams {
 #[derive(Debug, Serialize)]
 struct TxRequestParams {
     transaction: Hash,
-    min_ledger: u32,
-    max_ledger: u32,
 }
 
 impl HttpRpcClient {
@@ -304,21 +302,9 @@ impl HttpRpcClient {
         .await
     }
 
-    pub async fn tx(
-        &self,
-        transaction: Hash,
-        min_ledger: u32,
-        max_ledger: u32,
-    ) -> Result<TxResult, HttpRpcClientError> {
-        self.send_rpc_request::<_, TxResult>(
-            RpcMethod::Tx,
-            &TxRequestParams {
-                transaction,
-                min_ledger,
-                max_ledger,
-            },
-        )
-        .await
+    pub async fn tx(&self, transaction: Hash) -> Result<TxResult, HttpRpcClientError> {
+        self.send_rpc_request::<_, TxResult>(RpcMethod::Tx, &TxRequestParams { transaction })
+            .await
     }
 
     pub async fn ledger(

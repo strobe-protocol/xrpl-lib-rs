@@ -13,7 +13,7 @@ use xrpl_lib::{
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{Hook, UnsignedPaymentTransaction, UnsignedSetHookTransaction},
-    util::{create_last_ledger_sequence, wait_for_transaction},
+    utils::{create_last_ledger_sequence, wait_for_transaction},
 };
 
 struct CommonSetup {

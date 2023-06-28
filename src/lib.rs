@@ -16,4 +16,4 @@ pub mod transaction;
 
 pub mod rpc;
 
-pub mod util;
+pub mod utils;

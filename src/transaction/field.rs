@@ -8,6 +8,7 @@ pub enum RippleFieldKind {
     HookApiVersion(HookApiVersionField),
     NetworkId(NetworkIdField),
     Sequence(SequenceField),
+    LastLedgerSequence(LastLedgerSequenceField),
     HookOn(HookOnField),
     HookNamespace(HookNamespaceField),
     Amount(AmountField),
@@ -46,6 +47,8 @@ pub struct HookApiVersionField(pub UInt16Type);
 pub struct NetworkIdField(pub UInt32Type);
 #[derive(Clone)]
 pub struct SequenceField(pub UInt32Type);
+#[derive(Clone)]
+pub struct LastLedgerSequenceField(pub UInt32Type);
 #[derive(Clone)]
 pub struct HookOnField(pub Hash256Type);
 #[derive(Clone)]
@@ -197,6 +200,7 @@ impl RippleFieldKind {
             RippleFieldKind::HookApiVersion(inner) => inner.to_bytes(),
             RippleFieldKind::NetworkId(inner) => inner.to_bytes(),
             RippleFieldKind::Sequence(inner) => inner.to_bytes(),
+            RippleFieldKind::LastLedgerSequence(inner) => inner.to_bytes(),
             RippleFieldKind::HookOn(inner) => inner.to_bytes(),
             RippleFieldKind::HookNamespace(inner) => inner.to_bytes(),
             RippleFieldKind::Amount(inner) => inner.to_bytes(),
@@ -382,6 +386,17 @@ impl RippleField for SequenceField {
         &self.0
     }
 }
+impl RippleField for LastLedgerSequenceField {
+    type Type = UInt32Type;
+
+    fn field_code() -> u8 {
+        27
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
 impl RippleField for HookOnField {
     type Type = Hash256Type;
 
@@ -522,6 +537,11 @@ impl From<NetworkIdField> for RippleFieldKind {
 impl From<SequenceField> for RippleFieldKind {
     fn from(value: SequenceField) -> Self {
         Self::Sequence(value)
+    }
+}
+impl From<LastLedgerSequenceField> for RippleFieldKind {
+    fn from(value: LastLedgerSequenceField) -> Self {
+        Self::LastLedgerSequence(value)
     }
 }
 impl From<HookOnField> for RippleFieldKind {

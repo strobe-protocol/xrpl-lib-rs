@@ -15,3 +15,5 @@ pub mod testnet_faucet;
 pub mod transaction;
 
 pub mod rpc;
+
+pub mod utils;

@@ -19,6 +19,7 @@ pub struct UnsignedPaymentTransaction {
     pub network_id: u32,
     pub fee: u64,
     pub sequence: u32,
+    pub last_ledger_sequence: u32,
     pub signing_pub_key: PublicKey,
     //
     // Payment specific fields
@@ -34,6 +35,7 @@ pub struct UnsignedSetHookTransaction {
     pub network_id: u32,
     pub fee: u64,
     pub sequence: u32,
+    pub last_ledger_sequence: u32,
     pub signing_pub_key: PublicKey,
     //
     // SetHook specific fields
@@ -74,6 +76,7 @@ impl UnsignedPaymentTransaction {
             TransactionTypeField(UInt16Type(0x00)).into(),
             NetworkIdField(UInt32Type(self.network_id)).into(),
             SequenceField(UInt32Type(self.sequence)).into(),
+            LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
             AmountField(AmountType(self.amount)).into(),
             FeeField(AmountType(self.fee)).into(),
             SigningPubKeyField(BlobType(
@@ -115,6 +118,7 @@ impl UnsignedSetHookTransaction {
             TransactionTypeField(UInt16Type(0x16)).into(),
             NetworkIdField(UInt32Type(self.network_id)).into(),
             SequenceField(UInt32Type(self.sequence)).into(),
+            LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
             FeeField(AmountType(self.fee)).into(),
             SigningPubKeyField(BlobType(
                 self.signing_pub_key.to_compressed_bytes_be().to_vec(),
@@ -163,6 +167,7 @@ impl SignedPaymentTransaction {
             TransactionTypeField(UInt16Type(0)).into(),
             NetworkIdField(UInt32Type(self.payload.network_id)).into(),
             SequenceField(UInt32Type(self.payload.sequence)).into(),
+            LastLedgerSequenceField(UInt32Type(self.payload.last_ledger_sequence)).into(),
             AmountField(AmountType(self.payload.amount)).into(),
             FeeField(AmountType(self.payload.fee)).into(),
             SigningPubKeyField(BlobType(
@@ -208,6 +213,7 @@ impl SignedSetHookTransaction {
             TransactionTypeField(UInt16Type(0x16)).into(),
             NetworkIdField(UInt32Type(self.payload.network_id)).into(),
             SequenceField(UInt32Type(self.payload.sequence)).into(),
+            LastLedgerSequenceField(UInt32Type(self.payload.last_ledger_sequence)).into(),
             FeeField(AmountType(self.payload.fee)).into(),
             SigningPubKeyField(BlobType(
                 self.payload
@@ -260,12 +266,11 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_sign_payment_transaction() {
         const EXPECTED_ENCODED: &[u8] = &hex!(
-            "120000210000535a2400000064614000000005f5e10068400000000000001473\
-            21032dc8fe06a6969aef77325f4ea7710f25532e6e044c8d0befab585c542aa7\
-            9a4c7446304402206e1265ffccb19a3c71b46b28df9e02b8ee414dbc0d9d7759\
-            d83df168ffdcb31202205a8c9d609e8fa744167aa6fc61881920919ee9d10fa7\
-            9f89ab200e8b9f92aa5781142a73c099d4b6e693facac67be9dc780043d78b12\
-            83142bb872bde0610250cd42abf8c099194380769266"
+            "120000210000535a2400000064201b00000065614000000005f5e10068400000000000001473\
+            21032dc8fe06a6969aef77325f4ea7710f25532e6e044c8d0befab585c542aa79a4c744630440\
+            220083a12874498456cb99f1603168cdd5a3d9ffb0ad602af1bce32a4cfd1322dee02203dae0d\
+            9795c482082cb79db1a3a1a101edd2609808c0f8d0d49b27921d4f2fae81142a73c099d4b6e69\
+            3facac67be9dc780043d78b1283142bb872bde0610250cd42abf8c099194380769266"
         );
 
         let private_key = Secret::from_base58check("spvyv3vG6GBG9sA6o4on8YDpxp9ZZ")
@@ -277,6 +282,7 @@ mod tests {
             network_id: 21338,
             fee: 20,
             sequence: 100,
+            last_ledger_sequence: 101,
             signing_pub_key: private_key.public_key(),
             amount: 100000000,
             destination: Address::from_base58check("rhzBrANLLrt2H9TxrLVkvTsQHuZ3sfFXEW").unwrap(),

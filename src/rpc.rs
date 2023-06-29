@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
 use reqwest::Client as HttpClient;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 use url::Url;
 
 use crate::{address::Address, hash::Hash, transaction_result::TransactionResult};
@@ -149,6 +151,9 @@ pub enum AccountInfoError {
 #[serde(rename_all = "PascalCase")]
 pub struct AccountData {
     pub sequence: u32,
+    /// The account's current XRP balance in drops
+    #[serde(deserialize_with = "deserialize_string_as_number")]
+    pub balance: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -183,6 +188,29 @@ pub enum TxError {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct HookExecution {
+    pub hook_hash: Hash,
+    /// The account that owns the hook
+    pub hook_account: Address,
+    /// Success if greater than or equal to 0, failure if less than 0.
+    #[serde(deserialize_with = "deserialize_string_as_number")]
+    pub hook_return_code: i32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct HookExecutionHolder {
+    pub hook_execution: HookExecution,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct Meta {
+    pub hook_executions: Option<Vec<HookExecutionHolder>>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct TxSuccess {
     #[serde(rename = "Account")]
     pub account: Address,
@@ -191,6 +219,15 @@ pub struct TxSuccess {
     /// data is not final.
     #[serde(default = "bool::default")]
     pub validated: bool,
+    /// Transaction metadata is a section of data that gets added to a transaction after it is
+    /// processed. Any transaction that gets included in a ledger has metadata, regardless of
+    /// whether it is successful. The transaction metadata describes the outcome of the transaction
+    /// in detail.
+    ///
+    /// Depending on situations, metadata does not exist. For example, a payment transaction
+    /// that is not validated yet does not have metadata, but will have metadata as soon as it is
+    /// validated.
+    pub meta: Option<Meta>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -198,6 +235,58 @@ pub struct TxSuccess {
 pub enum TxResult {
     Success(TxSuccess),
     Error(RpcError<TxError>),
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "PascalCase")]
+pub struct HookAccountObject {
+    pub hook_hash: Hash,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct HookAccountObjectHolder {
+    pub hook: HookAccountObject,
+}
+
+// TODO: specify other types
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub enum AccountObjectLedgerEntryType {
+    Hook,
+    Other(String),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct AccountObject {
+    pub hooks: Option<Vec<HookAccountObjectHolder>>,
+    pub ledger_entry_type: AccountObjectLedgerEntryType,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AccountObjectsSuccess {
+    pub account_objects: Vec<AccountObject>,
+    #[serde(default = "bool::default")]
+    pub validated: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub enum AccountObjectsError {
+    /// The address specified in the account field of the request does not correspond to an account
+    /// in the ledger.
+    #[serde(rename = "actNotFound")]
+    ActNotFound,
+    /// The ledger specified by the ledger_hash or ledger_index does not exist, or it does exist
+    /// but the server does not have it.
+    #[serde(rename = "lgrNotFound")]
+    LgrNotFound,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum AccountObjectsResult {
+    Success(AccountObjectsSuccess),
+    Error(RpcError<AccountObjectsError>),
 }
 
 #[derive(Debug, Serialize)]
@@ -246,6 +335,7 @@ enum RpcMethod {
     AccountInfo,
     Tx,
     Ledger,
+    AccountObjects,
 }
 
 #[derive(Debug, Serialize)]
@@ -268,6 +358,12 @@ struct AccountInfoRequestParams {
 #[derive(Debug, Serialize)]
 struct TxRequestParams {
     transaction: Hash,
+}
+
+#[derive(Debug, Serialize)]
+struct AccountObjectsRequestParams {
+    account: Address,
+    ledger_index: LedgerIndex,
 }
 
 impl HttpRpcClient {
@@ -314,6 +410,21 @@ impl HttpRpcClient {
         self.send_rpc_request::<_, LedgerResult>(
             RpcMethod::Ledger,
             &LedgerRequestParams { ledger_index },
+        )
+        .await
+    }
+
+    pub async fn account_objects(
+        &self,
+        account: Address,
+        ledger_index: LedgerIndex,
+    ) -> Result<AccountObjectsResult, HttpRpcClientError> {
+        self.send_rpc_request::<_, AccountObjectsResult>(
+            RpcMethod::AccountObjects,
+            &AccountObjectsRequestParams {
+                account,
+                ledger_index,
+            },
         )
         .await
     }
@@ -365,4 +476,14 @@ where
     S: serde::Serializer,
 {
     serializer.serialize_str(&hex::encode(value).to_ascii_uppercase())
+}
+
+fn deserialize_string_as_number<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr,
+    <T as FromStr>::Err: std::fmt::Display,
+{
+    let s = String::deserialize(deserializer)?;
+    s.parse::<T>().map_err(serde::de::Error::custom)
 }

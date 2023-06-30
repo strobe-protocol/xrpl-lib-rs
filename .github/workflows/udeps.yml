@@ -15,7 +15,7 @@ jobs:
       - name: "Setup nightly toolchain"
         uses: "actions-rs/toolchain@v1"
         with:
-          toolchain: "nightly"
+          toolchain: "nightly-2023-06-27"
           profile: "minimal"
           override: true
 

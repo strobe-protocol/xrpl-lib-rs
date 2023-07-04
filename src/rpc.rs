@@ -210,6 +210,14 @@ pub struct Meta {
     pub hook_executions: Option<Vec<HookExecutionHolder>>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(untagged)]
+pub enum MaybeValidatedMeta {
+    #[default]
+    NotValidated,
+    Validated(Meta),
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TxSuccess {
     #[serde(rename = "Account")]
@@ -224,10 +232,11 @@ pub struct TxSuccess {
     /// whether it is successful. The transaction metadata describes the outcome of the transaction
     /// in detail.
     ///
-    /// Depending on situations, metadata does not exist. For example, a payment transaction
-    /// that is not validated yet does not have metadata, but will have metadata as soon as it is
-    /// validated.
-    pub meta: Option<Meta>,
+    /// It always exists when a transaction is validated and it does not when a transaction is
+    /// not validated. For example, a payment transaction that is not validated yet does not have
+    /// metadata, but will have metadata as soon as it is validated.
+    #[serde(default = "MaybeValidatedMeta::default")]
+    pub meta: MaybeValidatedMeta,
 }
 
 #[derive(Debug, Deserialize)]

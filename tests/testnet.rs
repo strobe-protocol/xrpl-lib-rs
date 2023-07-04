@@ -10,7 +10,7 @@ use xrpl_lib::{
     rpc::{
         AccountInfoError, AccountInfoResult, AccountObjectLedgerEntryType, AccountObjectsResult,
         HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut, LedgerResult,
-        SubmitResult,
+        MaybeValidatedMeta, SubmitResult,
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{Hook, UnsignedPaymentTransaction, UnsignedSetHookTransaction},
@@ -330,24 +330,28 @@ async fn testnet_hook_execution() {
             assert_eq!(signed_tx.hash(), validated_tx.hash);
             assert_eq!(benefactor.address, validated_tx.account);
 
-            let meta = validated_tx.meta.expect("meta is missing from transaction");
-            let hook_executions = meta
-                .hook_executions
-                .expect("hook executions are missing from transaction metadata");
+            match validated_tx.meta {
+                MaybeValidatedMeta::Validated(meta) => {
+                    let hook_executions = meta
+                        .hook_executions
+                        .expect("hook executions are missing from transaction metadata");
 
-            assert_eq!(hook_executions.len(), 1);
+                    assert_eq!(hook_executions.len(), 1);
 
-            let hook_execution_holder = &hook_executions[0];
+                    let hook_execution_holder = &hook_executions[0];
 
-            assert_eq!(
-                hook_execution_holder.hook_execution.hook_account,
-                beneficiary.address
-            );
-            assert_eq!(
-                beneficiary_hook_object.hook_hash,
-                hook_execution_holder.hook_execution.hook_hash
-            );
-            assert!(hook_execution_holder.hook_execution.hook_return_code >= 0);
+                    assert_eq!(
+                        hook_execution_holder.hook_execution.hook_account,
+                        beneficiary.address
+                    );
+                    assert_eq!(
+                        beneficiary_hook_object.hook_hash,
+                        hook_execution_holder.hook_execution.hook_hash
+                    );
+                    assert!(hook_execution_holder.hook_execution.hook_return_code >= 0);
+                }
+                _ => panic!("transaction metadata is missing"),
+            }
         }
         SubmitResult::Error(rpc_error) => {
             panic!("failed to submit transaction: {:?}", rpc_error.error)

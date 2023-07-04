@@ -212,7 +212,7 @@ pub struct Meta {
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(untagged)]
-pub enum MaybeValidatedMeta {
+pub enum Validation {
     #[default]
     NotValidated,
     Validated(Meta),
@@ -223,20 +223,17 @@ pub struct TxSuccess {
     #[serde(rename = "Account")]
     pub account: Address,
     pub hash: Hash,
-    /// If true, this data comes from a validated ledger version; if omitted or set to false, this
-    /// data is not final.
-    #[serde(default = "bool::default")]
-    pub validated: bool,
     /// Transaction metadata is a section of data that gets added to a transaction after it is
     /// processed. Any transaction that gets included in a ledger has metadata, regardless of
     /// whether it is successful. The transaction metadata describes the outcome of the transaction
     /// in detail.
     ///
-    /// It always exists when a transaction is validated and it does not when a transaction is
-    /// not validated. For example, a payment transaction that is not validated yet does not have
-    /// metadata, but will have metadata as soon as it is validated.
-    #[serde(default = "MaybeValidatedMeta::default")]
-    pub meta: MaybeValidatedMeta,
+    /// Transaction metadata always exists when a transaction is validated and it does not when a
+    /// transaction is not validated. For example, a payment transaction that is not validated
+    /// yet does not have metadata, but will have metadata as soon as it is validated.
+    #[serde(rename = "meta")]
+    #[serde(default = "Validation::default")]
+    pub validation: Validation,
 }
 
 #[derive(Debug, Deserialize)]

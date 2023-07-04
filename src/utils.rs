@@ -2,7 +2,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::{
     hash::Hash,
-    rpc::{HttpRpcClient, HttpRpcClientError, TxError, TxResult, TxSuccess},
+    rpc::{HttpRpcClient, HttpRpcClientError, TxError, TxResult, TxSuccess, Validation},
 };
 
 // Approximate time for a ledger to close, in milliseconds
@@ -36,7 +36,7 @@ pub async fn wait_for_transaction(
 
         match tx {
             TxResult::Success(success) => {
-                if success.validated {
+                if let Validation::Validated(_) = success.validation {
                     return Ok(success);
                 }
             }

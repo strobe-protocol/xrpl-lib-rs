@@ -10,7 +10,7 @@ use xrpl_lib::{
     rpc::{
         AccountInfoError, AccountInfoResult, AccountObjectLedgerEntryType, AccountObjectsResult,
         HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut, LedgerResult,
-        MaybeValidatedMeta, SubmitResult,
+        SubmitResult, Validation,
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{Hook, UnsignedPaymentTransaction, UnsignedSetHookTransaction},
@@ -330,8 +330,8 @@ async fn testnet_hook_execution() {
             assert_eq!(signed_tx.hash(), validated_tx.hash);
             assert_eq!(benefactor.address, validated_tx.account);
 
-            match validated_tx.meta {
-                MaybeValidatedMeta::Validated(meta) => {
+            match validated_tx.validation {
+                Validation::Validated(meta) => {
                     let hook_executions = meta
                         .hook_executions
                         .expect("hook executions are missing from transaction metadata");

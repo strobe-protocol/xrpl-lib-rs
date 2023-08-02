@@ -210,17 +210,14 @@ pub struct Meta {
     pub hook_executions: Option<Vec<HookExecutionHolder>>,
 }
 
-#[derive(Debug, Deserialize, Default)]
-#[serde(untagged)]
+#[derive(Debug)]
 pub enum Validation {
-    #[default]
     NotValidated,
     Validated(Meta),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct TxSuccess {
-    #[serde(rename = "Account")]
     pub account: Address,
     pub hash: Hash,
     /// Transaction metadata is a section of data that gets added to a transaction after it is
@@ -231,8 +228,6 @@ pub struct TxSuccess {
     /// Transaction metadata always exists when a transaction is validated and it does not when a
     /// transaction is not validated. For example, a payment transaction that is not validated
     /// yet does not have metadata, but will have metadata as soon as it is validated.
-    #[serde(rename = "meta")]
-    #[serde(default = "Validation::default")]
     pub validation: Validation,
 }
 
@@ -474,6 +469,41 @@ impl HttpRpcClient {
 impl std::fmt::Display for UniversalXrplError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "xrp ledger universal error: {:?}", self)
+    }
+}
+
+impl<'de> Deserialize<'de> for TxSuccess {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawTxSuccess {
+            #[serde(rename = "Account")]
+            account: Address,
+            hash: Hash,
+            #[serde(default)]
+            validated: bool,
+            meta: Option<Meta>,
+        }
+
+        let raw = RawTxSuccess::deserialize(deserializer)?;
+
+        let validation = match (raw.validated, raw.meta) {
+            (true, Some(meta)) => Validation::Validated(meta),
+            (false, None) => Validation::NotValidated,
+            (true, None) | (false, Some(_)) => {
+                return Err(serde::de::Error::custom(
+                    "inconsistent `validated` and `meta` fields",
+                ));
+            }
+        };
+
+        Ok(Self {
+            account: raw.account,
+            hash: raw.hash,
+            validation,
+        })
     }
 }
 

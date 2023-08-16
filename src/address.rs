@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::base58check;
 
 const ADDRESS_VERSION: u8 = 0;
-const ADDRESS_LENGTH: usize = 20;
+pub(crate) const ADDRESS_LENGTH: usize = 20;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Address {
@@ -25,7 +25,7 @@ pub enum AddressFromEncodedError {
 pub struct AddressFromSliceError(usize);
 
 impl Address {
-    pub fn from_byte_array(bytes: [u8; 20]) -> Self {
+    pub fn from_byte_array(bytes: [u8; ADDRESS_LENGTH]) -> Self {
         Self { inner: bytes }
     }
 
@@ -62,7 +62,7 @@ impl Address {
         base58check::encode(ADDRESS_VERSION, &self.inner)
     }
 
-    pub fn to_bytes(&self) -> [u8; 20] {
+    pub fn to_bytes(&self) -> [u8; ADDRESS_LENGTH] {
         self.inner
     }
 }
@@ -93,7 +93,7 @@ mod tests {
     use hex_literal::hex;
 
     const ENCODED: &str = "rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX";
-    const BYTES: [u8; 20] = hex!("2a73c099d4b6e693facac67be9dc780043d78b12");
+    const BYTES: [u8; ADDRESS_LENGTH] = hex!("2a73c099d4b6e693facac67be9dc780043d78b12");
 
     #[test]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

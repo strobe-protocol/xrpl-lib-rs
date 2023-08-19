@@ -90,6 +90,18 @@ impl TokenValue {
     }
 }
 
+impl From<&TokenValue> for BigDecimal {
+    fn from(value: &TokenValue) -> Self {
+        (&value.inner).into()
+    }
+}
+
+impl From<TokenValue> for BigDecimal {
+    fn from(value: TokenValue) -> Self {
+        (&value.inner).into()
+    }
+}
+
 impl TryFrom<BigDecimal> for TokenValue {
     type Error = TokenValueError;
 

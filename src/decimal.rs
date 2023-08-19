@@ -161,6 +161,28 @@ where
     }
 }
 
+impl<MSB> From<&Decimal<MSB>> for BigDecimal {
+    fn from(value: &Decimal<MSB>) -> Self {
+        match value {
+            Decimal::Zero => Self::zero(),
+            Decimal::NonZero(value) => {
+                // This function always returns `Some`.
+                let digits = BigInt::from_u64(value.mantissa).unwrap();
+                let digits = if value.is_positive { digits } else { -digits };
+
+                let decimal = Self::new(digits, -value.exponent as i64);
+                decimal.normalized()
+            }
+        }
+    }
+}
+
+impl<MSB> From<Decimal<MSB>> for BigDecimal {
+    fn from(value: Decimal<MSB>) -> Self {
+        (&value).into()
+    }
+}
+
 impl<MSB> TryFrom<BigDecimal> for Decimal<MSB>
 where
     MSB: MostSignificantBit,
@@ -237,5 +259,22 @@ where
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let decimal = BigDecimal::from_str(s).map_err(DecimalError::ParseBigDecimalError)?;
         decimal.try_into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bigdecimal_round_trip() {
+        for decimal_str in ["0", "0.00", "0.00010", "1.23", "12345678.87654321"].into_iter() {
+            let parsed_big_decimal: BigDecimal = decimal_str.parse().unwrap();
+            let decimal: Decimal<OneMostSignificantBit> =
+                parsed_big_decimal.clone().try_into().unwrap();
+            let converted_big_decimal: BigDecimal = decimal.into();
+
+            assert_eq!(parsed_big_decimal, converted_big_decimal);
+        }
     }
 }

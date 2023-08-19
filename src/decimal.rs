@@ -6,7 +6,8 @@ use bigdecimal::{BigDecimal, ParseBigDecimalError};
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, Signed, Zero};
 
-const ZERO_WITH_ONE_MSB: [u8; 8] = [0x80, 0, 0, 0, 0, 0, 0, 0];
+const ZERO_WITH_ONE_MSB_BE: [u8; 8] = [0x80, 0, 0, 0, 0, 0, 0, 0];
+const ZERO_WITH_ONE_MSB_LE: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0x80];
 const ZERO_WITH_ZERO_MSB: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
 const MSB_MASK: u64 = 0x8000000000000000;
@@ -30,9 +31,9 @@ pub(crate) enum Decimal<MSB> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct NonZeroDecimal<MSB> {
-    is_positive: bool,
-    exponent: i8,
-    mantissa: u64,
+    pub(crate) is_positive: bool,
+    pub(crate) exponent: i8,
+    pub(crate) mantissa: u64,
     msb: PhantomData<MSB>,
 }
 
@@ -56,7 +57,16 @@ pub(crate) trait MostSignificantBit {
 }
 
 #[derive(Debug, Clone)]
+pub(crate) struct ZeroMostSignificantBit;
+
+#[derive(Debug, Clone)]
 pub(crate) struct OneMostSignificantBit;
+
+impl MostSignificantBit for ZeroMostSignificantBit {
+    fn is_one() -> bool {
+        false
+    }
+}
 
 impl MostSignificantBit for OneMostSignificantBit {
     fn is_one() -> bool {
@@ -68,34 +78,46 @@ impl<MSB> Decimal<MSB>
 where
     MSB: MostSignificantBit,
 {
-    pub fn to_bytes(&self) -> [u8; DECIMAL_BYTES_LENGTH] {
+    pub fn to_be_bytes(&self) -> [u8; DECIMAL_BYTES_LENGTH] {
         match self {
             Self::Zero => {
                 if MSB::is_one() {
-                    ZERO_WITH_ONE_MSB
+                    ZERO_WITH_ONE_MSB_BE
                 } else {
                     ZERO_WITH_ZERO_MSB
                 }
             }
-            Self::NonZero(value) => value.to_bytes(),
+            Self::NonZero(value) => value.to_be_bytes(),
+        }
+    }
+    pub fn to_le_bytes(&self) -> [u8; DECIMAL_BYTES_LENGTH] {
+        match self {
+            Self::Zero => {
+                if MSB::is_one() {
+                    ZERO_WITH_ONE_MSB_LE
+                } else {
+                    ZERO_WITH_ZERO_MSB
+                }
+            }
+            Self::NonZero(value) => value.to_le_bytes(),
         }
     }
 
-    pub fn from_byte_slice(bytes: &[u8]) -> Result<Self, DecimalError> {
+    pub fn from_be_byte_slice(bytes: &[u8]) -> Result<Self, DecimalError> {
         if bytes.len() != DECIMAL_BYTES_LENGTH {
             return Err(DecimalError::InvalidByteLength(bytes.len()));
         }
 
         if bytes
             == if MSB::is_one() {
-                ZERO_WITH_ONE_MSB
+                ZERO_WITH_ONE_MSB_BE
             } else {
                 ZERO_WITH_ZERO_MSB
             }
         {
             Ok(Self::Zero)
         } else {
-            Ok(Self::NonZero(NonZeroDecimal::from_byte_slice(bytes)?))
+            Ok(Self::NonZero(NonZeroDecimal::from_be_byte_slice(bytes)?))
         }
     }
 }
@@ -121,7 +143,7 @@ where
         })
     }
 
-    pub fn from_byte_slice(bytes: &[u8]) -> Result<Self, DecimalError> {
+    pub fn from_be_byte_slice(bytes: &[u8]) -> Result<Self, DecimalError> {
         if bytes.len() != DECIMAL_BYTES_LENGTH {
             return Err(DecimalError::InvalidByteLength(bytes.len()));
         }
@@ -147,7 +169,15 @@ where
         Self::new(is_positive, exponent, mantissa)
     }
 
-    pub fn to_bytes(&self) -> [u8; DECIMAL_BYTES_LENGTH] {
+    pub fn to_be_bytes(&self) -> [u8; DECIMAL_BYTES_LENGTH] {
+        self.to_u64_repr().to_be_bytes()
+    }
+
+    pub fn to_le_bytes(&self) -> [u8; DECIMAL_BYTES_LENGTH] {
+        self.to_u64_repr().to_le_bytes()
+    }
+
+    fn to_u64_repr(&self) -> u64 {
         let mut enclosing = if MSB::is_one() { MSB_MASK } else { 0 };
 
         if self.is_positive {
@@ -157,7 +187,7 @@ where
         enclosing |= (((self.exponent as i16) + 97) as u64) << 54;
         enclosing |= self.mantissa;
 
-        enclosing.to_be_bytes()
+        enclosing
     }
 }
 

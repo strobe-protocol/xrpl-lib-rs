@@ -22,4 +22,6 @@ pub mod currency_code;
 
 pub mod amount;
 
+pub mod xfl;
+
 mod decimal;

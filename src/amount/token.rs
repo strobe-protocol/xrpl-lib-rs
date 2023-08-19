@@ -80,12 +80,12 @@ impl TokenAmount {
 
 impl TokenValue {
     pub fn to_bytes(&self) -> [u8; TOKEN_VALUE_BYTES_LENGTH] {
-        self.inner.to_bytes()
+        self.inner.to_be_bytes()
     }
 
     pub fn from_byte_slice(bytes: &[u8]) -> Result<Self, TokenValueError> {
         Ok(Self {
-            inner: Decimal::from_byte_slice(bytes)?,
+            inner: Decimal::from_be_byte_slice(bytes)?,
         })
     }
 }

@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use serde::Deserialize;
+
 const ALLOWED_ISO_CURRENCY_CHARS: &[u8; 80] =
     b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?!@#$%^&*<>(){}[]|";
 
@@ -127,6 +129,33 @@ impl ArbitraryCurrencyCode {
 
     pub fn to_bytes(&self) -> [u8; CURRENCY_CODE_BYTES_LENGTH] {
         self.inner
+    }
+}
+
+impl<'de> Deserialize<'de> for CurrencyCode {
+    /// This implementation is for decoding responses from RPC.
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+
+        if value.len() == 3 {
+            Ok(Self::Standard(
+                StandardCurrencyCode::from_str(&value)
+                    .map_err(|err| serde::de::Error::custom(format!("{}", err)))?,
+            ))
+        } else {
+            let bytes = hex::decode(value.trim_start_matches("0x"))
+                .map_err(|err| serde::de::Error::custom(format!("invalid hex string: {}", err)))?;
+            let bytes: [u8; 20] = bytes
+                .try_into()
+                .map_err(|_| serde::de::Error::custom("unexpected byte length"))?;
+
+            Ok(Self::Arbitrary(ArbitraryCurrencyCode::new(bytes).map_err(
+                |err| serde::de::Error::custom(format!("{}", err)),
+            )?))
+        }
     }
 }
 

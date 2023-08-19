@@ -1,12 +1,11 @@
-use tokio::time::{sleep, Duration};
-
 use crate::{
     hash::Hash,
+    interop::universal_sleep,
     rpc::{HttpRpcClient, HttpRpcClientError, TxError, TxResult, TxSuccess, Validation},
 };
 
 // Approximate time for a ledger to close, in milliseconds
-const LEDGER_CLOSE_DURATION_MS: u64 = 3000;
+const LEDGER_CLOSE_DURATION_MS: u32 = 3000;
 // Automated processes should use a value of 4 greater than the last validated ledger index to make
 // sure that a transaction is validated or rejected in a predictable and prompt way.
 const LAST_VALIDATED_LEDGER_OFFSET: u32 = 4;
@@ -45,7 +44,7 @@ pub async fn wait_for_transaction(
             }
         }
 
-        sleep(Duration::from_millis(LEDGER_CLOSE_DURATION_MS)).await;
+        universal_sleep(LEDGER_CLOSE_DURATION_MS).await;
         attempts += 1;
     }
 }

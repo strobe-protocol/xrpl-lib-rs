@@ -233,6 +233,9 @@ pub enum TransactionResultClaimedCostOnly {
     /// of the TakerGets currency.
     #[serde(rename = "tecUNFUNDED_OFFER")]
     UnfundedOffer,
+    /// The originating transaction will fail with tecHOOK_REJECTED and a fee will be charged.
+    #[serde(rename = "tecHOOK_REJECTED")]
+    HookRejected,
     // DEPRECATED.
     // #[serde(rename = "tecUNFUNDED_ADD")]
     // UnfundedAdd,

@@ -6,8 +6,9 @@ use hex_literal::hex;
 use url::Url;
 use xrpl_lib::{
     address::Address,
-    amount::{Amount, XrpAmount},
+    amount::{Amount, TokenAmount, XrpAmount},
     crypto::PrivateKey,
+    currency_code::{CurrencyCode, StandardCurrencyCode},
     rpc::{
         AccountInfoError, AccountInfoResult, AccountObjectLedgerEntryType, AccountObjectsResult,
         HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut, LedgerResult,
@@ -16,7 +17,7 @@ use xrpl_lib::{
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{
         flags, Hook, UnsignedAccountSetTransaction, UnsignedPaymentTransaction,
-        UnsignedSetHookTransaction,
+        UnsignedSetHookTransaction, UnsignedTrustSetTransaction,
     },
     utils::{create_last_ledger_sequence, wait_for_transaction},
 };
@@ -328,6 +329,49 @@ async fn testnet_account_set() {
         .expect("failed to submit payment");
 
     match account_set_result {
+        SubmitResult::Success(submit_success) => {
+            let validated_tx = wait_for_transaction(submit_success.tx_json.hash, &setup.rpc)
+                .await
+                .expect("failed to wait for transaction");
+
+            assert_eq!(signed_tx.hash(), validated_tx.hash);
+            assert_eq!(setup.address, validated_tx.account);
+        }
+        SubmitResult::Error(rpc_error) => {
+            panic!("failed to submit transaction: {:?}", rpc_error.error)
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "skipped by default as access to faucet is rate limited"]
+async fn testnet_trust_set() {
+    let setup = setup().await;
+
+    let unsigned_tx = UnsignedTrustSetTransaction {
+        account: setup.address,
+        network_id: 21338,
+        flags: vec![flags::TrustSetFlags::SetFreeze],
+        fee: XrpAmount::from_drops(100).unwrap(),
+        sequence: setup.account_sequence,
+        last_ledger_sequence: create_last_ledger_sequence(setup.last_validated_ledger_index),
+        signing_pub_key: setup.private_key.public_key(),
+        limit_amount: TokenAmount {
+            value: "100".parse().unwrap(),
+            currency: CurrencyCode::Standard(StandardCurrencyCode::new(*b"BTC").unwrap()),
+            issuer: Address::from_base58check("rhsFZHhNUDwiRGj7arkKAyQrRaK11cmwc8").unwrap(),
+        },
+    };
+
+    let signed_tx = unsigned_tx.sign(&setup.private_key);
+
+    let trust_set_result = setup
+        .rpc
+        .submit(&signed_tx.to_bytes())
+        .await
+        .expect("failed to submit trust set");
+
+    match trust_set_result {
         SubmitResult::Success(submit_success) => {
             let validated_tx = wait_for_transaction(submit_success.tx_json.hash, &setup.rpc)
                 .await

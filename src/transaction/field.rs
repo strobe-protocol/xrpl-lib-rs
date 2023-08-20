@@ -14,6 +14,7 @@ pub enum RippleFieldKind {
     HookOn(HookOnField),
     HookNamespace(HookNamespaceField),
     Amount(AmountField),
+    LimitAmount(LimitAmountField),
     Fee(FeeField),
     SigningPubKey(SigningPubKeyField),
     TxnSignature(TxnSignatureField),
@@ -65,6 +66,8 @@ pub struct HookOnField(pub Hash256Type);
 pub struct HookNamespaceField(pub Hash256Type);
 #[derive(Clone)]
 pub struct AmountField(pub AmountType);
+#[derive(Clone)]
+pub struct LimitAmountField(pub AmountType);
 #[derive(Clone)]
 pub struct FeeField(pub AmountType);
 #[derive(Clone)]
@@ -224,6 +227,7 @@ impl RippleFieldKind {
             RippleFieldKind::HookOn(inner) => inner.to_bytes(),
             RippleFieldKind::HookNamespace(inner) => inner.to_bytes(),
             RippleFieldKind::Amount(inner) => inner.to_bytes(),
+            RippleFieldKind::LimitAmount(inner) => inner.to_bytes(),
             RippleFieldKind::Fee(inner) => inner.to_bytes(),
             RippleFieldKind::SigningPubKey(inner) => inner.to_bytes(),
             RippleFieldKind::TxnSignature(inner) => inner.to_bytes(),
@@ -477,6 +481,17 @@ impl RippleField for AmountField {
         &self.0
     }
 }
+impl RippleField for LimitAmountField {
+    type Type = AmountType;
+
+    fn field_code() -> u8 {
+        3
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
 impl RippleField for FeeField {
     type Type = AmountType;
 
@@ -658,6 +673,11 @@ impl From<HookNamespaceField> for RippleFieldKind {
 impl From<AmountField> for RippleFieldKind {
     fn from(value: AmountField) -> Self {
         Self::Amount(value)
+    }
+}
+impl From<LimitAmountField> for RippleFieldKind {
+    fn from(value: LimitAmountField) -> Self {
+        Self::LimitAmount(value)
     }
 }
 impl From<FeeField> for RippleFieldKind {

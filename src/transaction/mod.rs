@@ -2,7 +2,7 @@ use sha2::{Digest, Sha512};
 
 use crate::{
     address::Address,
-    amount::{Amount, XrpAmount},
+    amount::{Amount, TokenAmount, XrpAmount},
     crypto::{PrivateKey, PublicKey, Signature},
     hash::Hash,
     transaction::field::*,
@@ -11,7 +11,7 @@ use crate::{
 mod field;
 
 pub mod flags;
-use flags::{AccountSetAsfFlags, AccountSetTfFlags};
+use flags::{AccountSetAsfFlags, AccountSetTfFlags, TrustSetFlags};
 
 #[derive(Debug, Clone)]
 pub struct UnsignedPaymentTransaction {
@@ -64,6 +64,22 @@ pub struct UnsignedAccountSetTransaction {
 }
 
 #[derive(Debug, Clone)]
+pub struct UnsignedTrustSetTransaction {
+    //
+    // Common tx fields
+    pub account: Address,
+    pub network_id: u32,
+    pub fee: XrpAmount,
+    pub sequence: u32,
+    pub last_ledger_sequence: u32,
+    pub signing_pub_key: PublicKey,
+    pub flags: Vec<TrustSetFlags>,
+    //
+    // TrustSet specific fields
+    pub limit_amount: TokenAmount,
+}
+
+#[derive(Debug, Clone)]
 pub struct SignedPaymentTransaction {
     pub payload: UnsignedPaymentTransaction,
     pub signature: Signature,
@@ -78,6 +94,12 @@ pub struct SignedSetHookTransaction {
 #[derive(Debug, Clone)]
 pub struct SignedAccountSetTransaction {
     pub payload: UnsignedAccountSetTransaction,
+    pub signature: Signature,
+}
+
+#[derive(Debug, Clone)]
+pub struct SignedTrustSetTransaction {
+    pub payload: UnsignedTrustSetTransaction,
     pub signature: Signature,
 }
 
@@ -239,6 +261,53 @@ impl UnsignedAccountSetTransaction {
                 .into(),
             );
         }
+
+        // TODO: sort fields
+
+        let mut buffer = vec![0x53, 0x54, 0x58, 0x00];
+
+        for field in fields.iter() {
+            let mut current = field.to_bytes();
+            buffer.append(&mut current);
+        }
+
+        let mut hasher = Sha512::new();
+        hasher.update(&buffer);
+        let hash = hasher.finalize();
+
+        let half_hash: [u8; 32] = hash[..32].try_into().unwrap();
+        half_hash.into()
+    }
+}
+
+impl UnsignedTrustSetTransaction {
+    pub fn sign(&self, key: &PrivateKey) -> SignedTrustSetTransaction {
+        SignedTrustSetTransaction {
+            payload: self.clone(),
+            signature: key.sign_hash(&self.sig_hash()),
+        }
+    }
+
+    pub fn sig_hash(&self) -> Hash {
+        let fields: Vec<RippleFieldKind> = vec![
+            TransactionTypeField(UInt16Type(20)).into(),
+            NetworkIdField(UInt32Type(self.network_id)).into(),
+            FlagsField(UInt32Type(
+                self.flags
+                    .iter()
+                    .fold(0, |acc_flags, flag| acc_flags | Into::<u32>::into(*flag)),
+            ))
+            .into(),
+            SequenceField(UInt32Type(self.sequence)).into(),
+            LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
+            LimitAmountField(AmountType(Amount::Token(self.limit_amount.clone()))).into(),
+            FeeField(AmountType(Amount::Xrp(self.fee))).into(),
+            SigningPubKeyField(BlobType(
+                self.signing_pub_key.to_compressed_bytes_be().to_vec(),
+            ))
+            .into(),
+            AccountField(AccountIDType(self.account)).into(),
+        ];
 
         // TODO: sort fields
 
@@ -420,6 +489,56 @@ impl SignedAccountSetTransaction {
         }
 
         // TODO: sort fields
+
+        let mut buffer = vec![];
+
+        for field in fields.iter() {
+            let mut current = field.to_bytes();
+            buffer.append(&mut current);
+        }
+
+        buffer
+    }
+}
+
+impl SignedTrustSetTransaction {
+    pub fn hash(&self) -> Hash {
+        let mut buffer = vec![0x54, 0x58, 0x4e, 0x00];
+        buffer.extend_from_slice(&self.to_bytes());
+
+        let mut hasher = sha2::Sha512::new();
+        hasher.update(&buffer);
+        let hash = hasher.finalize();
+
+        let half_hash: [u8; 32] = hash[..32].try_into().unwrap();
+        half_hash.into()
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let fields: Vec<RippleFieldKind> = vec![
+            TransactionTypeField(UInt16Type(20)).into(),
+            NetworkIdField(UInt32Type(self.payload.network_id)).into(),
+            FlagsField(UInt32Type(
+                self.payload
+                    .flags
+                    .iter()
+                    .fold(0, |acc_flags, flag| acc_flags | Into::<u32>::into(*flag)),
+            ))
+            .into(),
+            SequenceField(UInt32Type(self.payload.sequence)).into(),
+            LastLedgerSequenceField(UInt32Type(self.payload.last_ledger_sequence)).into(),
+            LimitAmountField(AmountType(Amount::Token(self.payload.limit_amount.clone()))).into(),
+            FeeField(AmountType(Amount::Xrp(self.payload.fee))).into(),
+            SigningPubKeyField(BlobType(
+                self.payload
+                    .signing_pub_key
+                    .to_compressed_bytes_be()
+                    .to_vec(),
+            ))
+            .into(),
+            TxnSignatureField(BlobType(self.signature.to_bytes().to_vec())).into(),
+            AccountField(AccountIDType(self.payload.account)).into(),
+        ];
 
         let mut buffer = vec![];
 

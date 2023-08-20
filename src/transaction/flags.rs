@@ -28,6 +28,16 @@ pub enum AccountSetTfFlags {
     AllowXRP = 0x00200000,
 }
 
+#[derive(Clone, Copy, Debug)]
+#[repr(u32)]
+pub enum TrustSetFlags {
+    SetfAuth = 0x00010000,
+    SetNoRipple = 0x00020000,
+    ClearNoRipple = 0x00040000,
+    SetFreeze = 0x00100000,
+    ClearFreeze = 0x00200000,
+}
+
 impl From<AccountSetAsfFlags> for u32 {
     fn from(value: AccountSetAsfFlags) -> Self {
         value as Self
@@ -36,6 +46,12 @@ impl From<AccountSetAsfFlags> for u32 {
 
 impl From<AccountSetTfFlags> for u32 {
     fn from(value: AccountSetTfFlags) -> Self {
+        value as Self
+    }
+}
+
+impl From<TrustSetFlags> for u32 {
+    fn from(value: TrustSetFlags) -> Self {
         value as Self
     }
 }

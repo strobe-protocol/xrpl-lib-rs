@@ -98,26 +98,35 @@ async fn get_new_account(faucet: &TestnetFaucet) -> NewAccountResult {
     loop {
         match faucet.get_new_account().await {
             Ok(account) => break account,
-            Err(TestnetFaucetError::ErrorMessage(err_msg)) => {
-                if let Some(rate_limited_matches) = rate_limited_regex.captures(&err_msg) {
-                    attempts += 1;
-                    if attempts >= 50 {
-                        panic!("still failing after {} attempts", attempts)
+            Err(err) => {
+                attempts += 1;
+                if attempts >= 50 {
+                    panic!("still failing after {} attempts", attempts)
+                }
+
+                match err {
+                    TestnetFaucetError::ErrorMessage(err_msg) => {
+                        if let Some(rate_limited_matches) = rate_limited_regex.captures(&err_msg) {
+                            let seconds_to_wait: u64 = rate_limited_matches
+                                .name("seconds")
+                                .unwrap()
+                                .as_str()
+                                .parse()
+                                .unwrap_or_else(|_| {
+                                    panic!("failed to parse seconds from: '{}'", err_msg)
+                                });
+
+                            tokio::time::sleep(Duration::from_secs(seconds_to_wait)).await;
+                        } else {
+                            panic!("unexpected faucet error message: {}", err_msg);
+                        }
                     }
-
-                    let seconds_to_wait: u64 = rate_limited_matches
-                        .name("seconds")
-                        .unwrap()
-                        .as_str()
-                        .parse()
-                        .unwrap_or_else(|_| panic!("failed to parse seconds from: '{}'", err_msg));
-
-                    tokio::time::sleep(Duration::from_secs(seconds_to_wait)).await;
-                } else {
-                    panic!("unexpected faucet error message: {}", err_msg);
+                    _ => {
+                        // Unknown error. Simply retry after 5 seconds
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                    }
                 }
             }
-            _ => panic!("faucet request failure"),
         }
     }
 }

@@ -9,6 +9,7 @@ use xrpl_lib::{
     amount::{Amount, TokenAmount, XrpAmount},
     crypto::PrivateKey,
     currency_code::{CurrencyCode, StandardCurrencyCode},
+    hash::Hash,
     rpc::{
         AccountInfoError, AccountInfoResult, AccountObjectLedgerEntryType, AccountObjectsResult,
         HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut, SubmitResult,
@@ -16,8 +17,8 @@ use xrpl_lib::{
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{
-        flags, Hook, UnsignedAccountSetTransaction, UnsignedPaymentTransaction,
-        UnsignedSetHookTransaction, UnsignedTrustSetTransaction,
+        flags, Hook, HookParameter, UnsignedAccountSetTransaction, UnsignedInvokeTransaction,
+        UnsignedPaymentTransaction, UnsignedSetHookTransaction, UnsignedTrustSetTransaction,
     },
     utils::{get_transaction_context, wait_for_transaction},
 };
@@ -114,7 +115,7 @@ async fn get_new_account(faucet: &TestnetFaucet) -> NewAccountResult {
     }
 }
 
-async fn set_hook(setup: &CommonSetup) {
+async fn set_hook(setup: &CommonSetup, hook_on: Hash, create_code: Vec<u8>) {
     let txn_ctx = get_transaction_context(setup.address, &setup.rpc)
         .await
         .unwrap();
@@ -128,13 +129,12 @@ async fn set_hook(setup: &CommonSetup) {
         hook_parameters: None,
         hooks: vec![Hook {
             hook_api_version: 0,
-            hook_on: hex!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbffffe")
-                .into(),
+            hook_on,
             hook_namespace: hex!(
                 "0000000000000000000000000000000000000000000000000000000000000001"
             )
             .into(),
-            create_code: include_bytes!("./data/hook-accept.wasm").to_vec(),
+            create_code,
             hook_parameters: vec![],
         }],
     };
@@ -391,7 +391,12 @@ async fn testnet_trust_set() {
 async fn testnet_hook_execution() {
     let beneficiary = setup().await;
 
-    set_hook(&beneficiary).await;
+    set_hook(
+        &beneficiary,
+        hex!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbffffe").into(),
+        include_bytes!("./data/hook-accept.wasm").to_vec(),
+    )
+    .await;
 
     let beneficiary_hook_object = get_account_hook_object(&beneficiary).await;
 
@@ -447,6 +452,97 @@ async fn testnet_hook_execution() {
                         hook_execution_holder.hook_execution.hook_hash
                     );
                     assert!(hook_execution_holder.hook_execution.hook_return_code >= 0);
+                }
+                _ => panic!("transaction metadata is missing"),
+            }
+        }
+        SubmitResult::Error(rpc_error) => {
+            panic!("failed to submit transaction: {:?}", rpc_error.error)
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "skipped by default as access to faucet is rate limited"]
+async fn testnet_tt_invoke_hook_execution_with_hook_parameters() {
+    let hook_account = setup().await;
+
+    set_hook(
+        &hook_account,
+        hex!("fffffffffffffffffffffffffffffffffffffff7ffffffffffffffffffbfffff").into(),
+        include_bytes!("./data/hook-on-tt-invoke.wasm").to_vec(),
+    )
+    .await;
+    let hook_account_hook_object = get_account_hook_object(&hook_account).await;
+
+    let invoker = setup().await;
+    let txn_ctx = get_transaction_context(invoker.address, &hook_account.rpc)
+        .await
+        .unwrap();
+
+    let unsigned_tx = UnsignedInvokeTransaction {
+        account: invoker.address,
+        network_id: 21338,
+        flags: 0,
+        fee: XrpAmount::from_drops(100000000).unwrap(),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
+        signing_pub_key: invoker.private_key.public_key(),
+        hook_parameters: Some(vec![
+            HookParameter {
+                name: "test".into(),
+                value: "test value".into(),
+            },
+            HookParameter {
+                name: "test1".into(),
+                value: "test value1".into(),
+            },
+        ]),
+        destination: hook_account.address,
+    };
+    let signed_tx = unsigned_tx.sign(&invoker.private_key);
+
+    let invoke_result = invoker
+        .rpc
+        .submit(&signed_tx.to_bytes())
+        .await
+        .expect("failed to submit payment tx");
+
+    match invoke_result {
+        SubmitResult::Success(submit_success) => {
+            let validated_tx = wait_for_transaction(submit_success.tx_json.hash, &invoker.rpc)
+                .await
+                .expect("failed to wait for transaction");
+
+            assert_eq!(signed_tx.hash(), validated_tx.hash);
+            assert_eq!(invoker.address, validated_tx.account);
+
+            match validated_tx.validation {
+                Validation::Validated(meta) => {
+                    let hook_executions = meta
+                        .hook_executions
+                        .expect("hook executions are missing from transaction metadata");
+
+                    assert_eq!(hook_executions.len(), 1);
+
+                    let hook_execution_holder = &hook_executions[0];
+
+                    assert_eq!(
+                        hook_execution_holder.hook_execution.hook_account,
+                        hook_account.address
+                    );
+                    assert_eq!(
+                        hook_account_hook_object.hook_hash,
+                        hook_execution_holder.hook_execution.hook_hash
+                    );
+                    assert!(hook_execution_holder.hook_execution.hook_return_code >= 0);
+                    assert_eq!(hook_execution_holder.hook_execution.hook_emit_count, 0);
+
+                    let expected_hook_return_string = b"hook_on_tt: Finished.\x00";
+                    assert_eq!(
+                        hook_execution_holder.hook_execution.hook_return_string,
+                        expected_hook_return_string
+                    );
                 }
                 _ => panic!("transaction metadata is missing"),
             }

@@ -277,8 +277,13 @@ impl RippleType for BlobType {
 
             buffer.push((193 + quotient) as u8);
             buffer.push(remainder as u8);
+        } else if len <= 918744 {
+            let len = len - 12481;
+            buffer.push((241 + (len >> 16)) as u8);
+            buffer.push(((len >> 8) & 0xff) as u8);
+            buffer.push((len & 0xff) as u8);
         } else {
-            todo!("handle long blob");
+            todo!("handle overflow")
         }
 
         buffer.extend_from_slice(&self.0);

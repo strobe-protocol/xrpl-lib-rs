@@ -21,3 +21,4 @@ XRP Ledger library in Rust.
   - [x] `AccountSet`
   - [x] `TrustSet`
   - [x] `Invoke`
+- [x] [XFL](https://github.com/XRPLF/XRPL-Standards/discussions/39)

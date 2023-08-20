@@ -456,6 +456,8 @@ async fn testnet_hook_execution() {
                         hook_execution_holder.hook_execution.hook_hash
                     );
                     assert!(hook_execution_holder.hook_execution.hook_return_code >= 0);
+                    assert_eq!(hook_execution_holder.hook_execution.hook_emit_count, 0);
+                    assert_eq!(hook_execution_holder.hook_execution.hook_return_string, b"");
                 }
                 _ => panic!("transaction metadata is missing"),
             }

@@ -1,12 +1,13 @@
 #![cfg(not(target_arch = "wasm32"))]
 
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
+use bigdecimal::BigDecimal;
 use hex_literal::hex;
 use url::Url;
 use xrpl_lib::{
     address::Address,
-    amount::{Amount, TokenAmount, XrpAmount},
+    amount::{Amount, TokenAmount, TokenValue, XrpAmount},
     crypto::PrivateKey,
     currency_code::{CurrencyCode, StandardCurrencyCode},
     hash::Hash,
@@ -16,6 +17,7 @@ use xrpl_lib::{
         HttpRpcClient, LedgerEntryHookStateRequestParam, LedgerEntryNode, LedgerEntryResult,
         LedgerIndex, LedgerIndexShortcut, SubmitResult, Validation,
     },
+    secret::Secret,
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{
         flags, Hook, HookParameter, UnsignedAccountSetTransaction, UnsignedInvokeTransaction,
@@ -698,6 +700,197 @@ async fn testnet_hook_ledger_entry() {
         }
         SubmitResult::Error(rpc_error) => {
             panic!("failed to submit transaction: {:?}", rpc_error.error)
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "skipped by default as access to faucet is rate limited"]
+async fn testnet_issue_fungible_token() {
+    let setup = setup().await;
+
+    let beneficiary_address = setup.address;
+    let beneficiary_private_key = setup.private_key;
+
+    let issuer_secret = Secret::from_base58check("ship7q694kpbauat3ZeaAyo3dimmB").unwrap();
+    let issuer_address = issuer_secret.private_key().public_key().address();
+
+    let txn_ctx = get_transaction_context(issuer_address, &setup.rpc)
+        .await
+        .unwrap();
+    let issuer_account_set_tx = UnsignedAccountSetTransaction {
+        account: issuer_address,
+        network_id: 21338,
+        flags: vec![],
+        set_flag: Some(flags::AccountSetAsfFlags::DefaultRipple),
+        fee: XrpAmount::from_drops(100).unwrap(),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
+        signing_pub_key: issuer_secret.private_key().public_key(),
+        hook_parameters: None,
+    };
+    let issuer_account_set_signed_tx = issuer_account_set_tx.sign(&issuer_secret.private_key());
+    let issuer_account_set_tx = setup
+        .rpc
+        .submit(&issuer_account_set_signed_tx.to_bytes())
+        .await
+        .expect("failed to submit AccountSet tx");
+
+    match issuer_account_set_tx {
+        SubmitResult::Success(submit_success) => {
+            let validated_tx = wait_for_transaction(submit_success.tx_json.hash, &setup.rpc)
+                .await
+                .expect("failed to wait for transaction");
+            assert_eq!(issuer_account_set_signed_tx.hash(), validated_tx.hash);
+            assert_eq!(issuer_address, validated_tx.account);
+        }
+        SubmitResult::Error(rpc_error) => {
+            panic!("failed to submit transaction: {:?}", rpc_error.error)
+        }
+    }
+
+    let txn_ctx = get_transaction_context(beneficiary_address, &setup.rpc)
+        .await
+        .unwrap();
+    let beneficiary_account_set_tx = UnsignedAccountSetTransaction {
+        account: beneficiary_address,
+        network_id: 21338,
+        flags: vec![],
+        set_flag: None,
+        fee: XrpAmount::from_drops(100).unwrap(),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
+        signing_pub_key: beneficiary_private_key.public_key(),
+        hook_parameters: None,
+    };
+    let beneficiary_account_set_signed_tx =
+        beneficiary_account_set_tx.sign(&beneficiary_private_key);
+    let beneficiary_account_set_tx = setup
+        .rpc
+        .submit(&beneficiary_account_set_signed_tx.to_bytes())
+        .await
+        .expect("failed to submit AccountSet tx");
+
+    match beneficiary_account_set_tx {
+        SubmitResult::Success(submit_success) => {
+            let validated_tx = wait_for_transaction(submit_success.tx_json.hash, &setup.rpc)
+                .await
+                .expect("failed to wait for transaction");
+            assert_eq!(beneficiary_account_set_signed_tx.hash(), validated_tx.hash);
+            assert_eq!(beneficiary_address, validated_tx.account);
+        }
+        SubmitResult::Error(error) => {
+            panic!("failed to submit transaction: {:?}", error.error)
+        }
+    }
+
+    let txn_ctx = get_transaction_context(beneficiary_address, &setup.rpc)
+        .await
+        .unwrap();
+    let unsigned_trust_set_tx = UnsignedTrustSetTransaction {
+        account: beneficiary_address,
+        network_id: 21338,
+        flags: vec![],
+        fee: XrpAmount::from_drops(100).unwrap(),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
+        signing_pub_key: beneficiary_private_key.public_key(),
+        limit_amount: TokenAmount {
+            value: TokenValue::from_str("1000000000000000").unwrap(),
+            currency: CurrencyCode::Standard(StandardCurrencyCode::new(*b"MMM").unwrap()),
+            issuer: issuer_address,
+        },
+    };
+
+    let trust_set_signed_tx: xrpl_lib::transaction::SignedTrustSetTransaction =
+        unsigned_trust_set_tx.sign(&beneficiary_private_key);
+
+    let trust_set_result = setup
+        .rpc
+        .submit(&trust_set_signed_tx.to_bytes())
+        .await
+        .expect("failed to submit TrustSet tx");
+
+    match trust_set_result {
+        SubmitResult::Success(submit_success) => {
+            let validated_tx = wait_for_transaction(submit_success.tx_json.hash, &setup.rpc)
+                .await
+                .expect("failed to wait for transaction");
+
+            assert_eq!(trust_set_signed_tx.hash(), validated_tx.hash);
+            assert_eq!(beneficiary_address, validated_tx.account);
+        }
+        SubmitResult::Error(rpc_error) => {
+            panic!("failed to submit transaction: {:?}", rpc_error.error)
+        }
+    }
+
+    let txn_ctx = get_transaction_context(issuer_address, &setup.rpc)
+        .await
+        .expect("failed to prepare for transaction");
+    let unsigned_token_issue_payment_tx = UnsignedPaymentTransaction {
+        account: issuer_address,
+        network_id: 21338,
+        fee: XrpAmount::from_drops(100).unwrap(),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
+        signing_pub_key: issuer_secret.private_key().public_key(),
+        hook_parameters: None,
+        amount: Amount::Token(TokenAmount {
+            value: TokenValue::from_str("10").unwrap(),
+            currency: CurrencyCode::Standard(StandardCurrencyCode::new(*b"MMM").unwrap()),
+            issuer: issuer_address,
+        }),
+        destination: beneficiary_address,
+    };
+
+    let token_issue_payment_signed_tx =
+        unsigned_token_issue_payment_tx.sign(&issuer_secret.private_key());
+    let token_issue_payment_result = setup
+        .rpc
+        .submit(&token_issue_payment_signed_tx.to_bytes())
+        .await
+        .expect("failed to submit payment tx");
+
+    match token_issue_payment_result {
+        SubmitResult::Success(submit_success) => {
+            let validated_tx = wait_for_transaction(submit_success.tx_json.hash, &setup.rpc)
+                .await
+                .expect("failed to wait for transaction");
+
+            assert_eq!(token_issue_payment_signed_tx.hash(), validated_tx.hash);
+            assert_eq!(issuer_address, validated_tx.account);
+        }
+        SubmitResult::Error(rpc_error) => {
+            panic!("failed to submit transaction: {:?}", rpc_error.error)
+        }
+    }
+
+    let account_lines = setup
+        .rpc
+        .account_lines(
+            beneficiary_address,
+            LedgerIndex::Shortcut(LedgerIndexShortcut::Validated),
+            Some(issuer_address),
+        )
+        .await
+        .expect("failed to get account lines");
+
+    match account_lines {
+        AccountLinesResult::Success(success) => {
+            let fake_token_line = success.lines.get(0).expect("no account lines found");
+            assert_eq!(
+                Into::<BigDecimal>::into(fake_token_line.balance.clone()),
+                BigDecimal::from_str("10.0").unwrap()
+            );
+            assert_eq!(fake_token_line.account, issuer_address);
+            assert_eq!(
+                fake_token_line.currency,
+                CurrencyCode::Standard(StandardCurrencyCode::new(*b"MMM").unwrap())
+            );
+        }
+        AccountLinesResult::Error(rpc_error) => {
+            panic!("failed to get account lines: {:?}", rpc_error.error)
         }
     }
 }

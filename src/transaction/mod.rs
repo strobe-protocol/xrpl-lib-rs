@@ -2,6 +2,7 @@ use sha2::{Digest, Sha512};
 
 use crate::{
     address::Address,
+    amount::{Amount, XrpAmount},
     crypto::{PrivateKey, PublicKey, Signature},
     hash::Hash,
     transaction::field::*,
@@ -17,13 +18,13 @@ pub struct UnsignedPaymentTransaction {
     // Common tx fields
     pub account: Address,
     pub network_id: u32,
-    pub fee: u64,
+    pub fee: XrpAmount,
     pub sequence: u32,
     pub last_ledger_sequence: u32,
     pub signing_pub_key: PublicKey,
     //
     // Payment specific fields
-    pub amount: u64,
+    pub amount: Amount,
     pub destination: Address,
 }
 
@@ -33,7 +34,7 @@ pub struct UnsignedSetHookTransaction {
     // Common tx fields
     pub account: Address,
     pub network_id: u32,
-    pub fee: u64,
+    pub fee: XrpAmount,
     pub sequence: u32,
     pub last_ledger_sequence: u32,
     pub signing_pub_key: PublicKey,
@@ -77,8 +78,8 @@ impl UnsignedPaymentTransaction {
             NetworkIdField(UInt32Type(self.network_id)).into(),
             SequenceField(UInt32Type(self.sequence)).into(),
             LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
-            AmountField(AmountType(self.amount)).into(),
-            FeeField(AmountType(self.fee)).into(),
+            AmountField(AmountType(self.amount.clone())).into(),
+            FeeField(AmountType(Amount::Xrp(self.fee))).into(),
             SigningPubKeyField(BlobType(
                 self.signing_pub_key.to_compressed_bytes_be().to_vec(),
             ))
@@ -119,7 +120,7 @@ impl UnsignedSetHookTransaction {
             NetworkIdField(UInt32Type(self.network_id)).into(),
             SequenceField(UInt32Type(self.sequence)).into(),
             LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
-            FeeField(AmountType(self.fee)).into(),
+            FeeField(AmountType(Amount::Xrp(self.fee))).into(),
             SigningPubKeyField(BlobType(
                 self.signing_pub_key.to_compressed_bytes_be().to_vec(),
             ))
@@ -168,8 +169,8 @@ impl SignedPaymentTransaction {
             NetworkIdField(UInt32Type(self.payload.network_id)).into(),
             SequenceField(UInt32Type(self.payload.sequence)).into(),
             LastLedgerSequenceField(UInt32Type(self.payload.last_ledger_sequence)).into(),
-            AmountField(AmountType(self.payload.amount)).into(),
-            FeeField(AmountType(self.payload.fee)).into(),
+            AmountField(AmountType(self.payload.amount.clone())).into(),
+            FeeField(AmountType(Amount::Xrp(self.payload.fee))).into(),
             SigningPubKeyField(BlobType(
                 self.payload
                     .signing_pub_key
@@ -214,7 +215,7 @@ impl SignedSetHookTransaction {
             NetworkIdField(UInt32Type(self.payload.network_id)).into(),
             SequenceField(UInt32Type(self.payload.sequence)).into(),
             LastLedgerSequenceField(UInt32Type(self.payload.last_ledger_sequence)).into(),
-            FeeField(AmountType(self.payload.fee)).into(),
+            FeeField(AmountType(Amount::Xrp(self.payload.fee))).into(),
             SigningPubKeyField(BlobType(
                 self.payload
                     .signing_pub_key
@@ -280,11 +281,11 @@ mod tests {
         let unsigned_payment = UnsignedPaymentTransaction {
             account: Address::from_base58check("rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX").unwrap(),
             network_id: 21338,
-            fee: 20,
+            fee: XrpAmount::from_drops(20).unwrap(),
             sequence: 100,
             last_ledger_sequence: 101,
             signing_pub_key: private_key.public_key(),
-            amount: 100000000,
+            amount: Amount::Xrp(XrpAmount::from_drops(100000000).unwrap()),
             destination: Address::from_base58check("rhzBrANLLrt2H9TxrLVkvTsQHuZ3sfFXEW").unwrap(),
         };
 

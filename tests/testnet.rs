@@ -6,6 +6,7 @@ use hex_literal::hex;
 use url::Url;
 use xrpl_lib::{
     address::Address,
+    amount::{Amount, XrpAmount},
     crypto::PrivateKey,
     rpc::{
         AccountInfoError, AccountInfoResult, AccountObjectLedgerEntryType, AccountObjectsResult,
@@ -127,7 +128,7 @@ async fn set_hook(setup: &CommonSetup) {
     let unsigned_tx = UnsignedSetHookTransaction {
         account: setup.address,
         network_id: 21338,
-        fee: 1000000000,
+        fee: XrpAmount::from_drops(1000000000).unwrap(),
         sequence: setup.account_sequence,
         last_ledger_sequence: create_last_ledger_sequence(setup.last_validated_ledger_index),
         signing_pub_key: setup.private_key.public_key(),
@@ -228,7 +229,7 @@ async fn get_account_balance(rpc: &HttpRpcClient, address: Address) -> u64 {
 
 #[tokio::test]
 #[ignore = "skipped by default as access to faucet is rate limited"]
-async fn testnet_payment() {
+async fn testnet_xrp_payment() {
     let benefactor = setup().await;
 
     let beneficiary_address =
@@ -248,11 +249,11 @@ async fn testnet_payment() {
     let unsigned_tx = UnsignedPaymentTransaction {
         account: benefactor.address,
         network_id: 21338,
-        fee: payment_fee,
+        fee: XrpAmount::from_drops(payment_fee).unwrap(),
         sequence: benefactor.account_sequence,
         last_ledger_sequence: create_last_ledger_sequence(benefactor.last_validated_ledger_index),
         signing_pub_key: benefactor.private_key.public_key(),
-        amount: payment_amount,
+        amount: Amount::Xrp(XrpAmount::from_drops(payment_amount).unwrap()),
         destination: beneficiary_address,
     };
     let signed_tx = unsigned_tx.sign(&benefactor.private_key);
@@ -306,11 +307,11 @@ async fn testnet_hook_execution() {
     let unsigned_tx = UnsignedPaymentTransaction {
         account: benefactor.address,
         network_id: 21338,
-        fee: 100000000,
+        fee: XrpAmount::from_drops(100000000).unwrap(),
         sequence: benefactor.account_sequence,
         last_ledger_sequence: create_last_ledger_sequence(benefactor.last_validated_ledger_index),
         signing_pub_key: benefactor.private_key.public_key(),
-        amount: 1000000,
+        amount: Amount::Xrp(XrpAmount::from_drops(1000000).unwrap()),
         destination: beneficiary.address,
     };
     let signed_tx = unsigned_tx.sign(&benefactor.private_key);

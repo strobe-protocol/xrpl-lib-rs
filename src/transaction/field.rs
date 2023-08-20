@@ -1,6 +1,6 @@
 use byteorder::{BigEndian, WriteBytesExt};
 
-use crate::{address::Address, hash::Hash};
+use crate::{address::Address, amount::Amount, hash::Hash};
 
 #[derive(Clone)]
 pub enum RippleFieldKind {
@@ -29,7 +29,7 @@ pub struct UInt32Type(pub u32);
 #[derive(Clone)]
 pub struct Hash256Type(pub Hash);
 #[derive(Clone)]
-pub struct AmountType(pub u64);
+pub struct AmountType(pub Amount);
 #[derive(Clone)]
 pub struct BlobType(pub Vec<u8>);
 #[derive(Clone)]
@@ -254,11 +254,7 @@ impl RippleType for AmountType {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        let xrp_amount = self.0 | 0x4000000000000000;
-
-        let mut buffer = vec![];
-        buffer.write_u64::<BigEndian>(xrp_amount).unwrap();
-        buffer
+        self.0.to_bytes()
     }
 }
 impl RippleType for BlobType {

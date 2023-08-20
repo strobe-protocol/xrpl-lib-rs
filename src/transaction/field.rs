@@ -16,10 +16,14 @@ pub enum RippleFieldKind {
     SigningPubKey(SigningPubKeyField),
     TxnSignature(TxnSignatureField),
     CreateCode(CreateCodeField),
+    HookParameterName(HookParameterNameField),
+    HookParameterValue(HookParameterValueField),
     Account(AccountField),
     Destination(DestinationField),
     Hook(HookField),
+    HookParameter(HookParameterField),
     Hooks(HooksField),
+    HookParameters(HookParametersField),
 }
 
 #[derive(Clone)]
@@ -64,13 +68,21 @@ pub struct TxnSignatureField(pub BlobType);
 #[derive(Clone)]
 pub struct CreateCodeField(pub BlobType);
 #[derive(Clone)]
+pub struct HookParameterNameField(pub BlobType);
+#[derive(Clone)]
+pub struct HookParameterValueField(pub BlobType);
+#[derive(Clone)]
 pub struct AccountField(pub AccountIDType);
 #[derive(Clone)]
 pub struct DestinationField(pub AccountIDType);
 #[derive(Clone)]
 pub struct HookField(pub STObjectType);
 #[derive(Clone)]
+pub struct HookParameterField(pub STObjectType);
+#[derive(Clone)]
 pub struct HooksField(pub STArrayType<HookField>);
+#[derive(Clone)]
+pub struct HookParametersField(pub STArrayType<HookParameterField>);
 
 #[derive(Debug)]
 struct FieldId {
@@ -208,10 +220,14 @@ impl RippleFieldKind {
             RippleFieldKind::SigningPubKey(inner) => inner.to_bytes(),
             RippleFieldKind::TxnSignature(inner) => inner.to_bytes(),
             RippleFieldKind::CreateCode(inner) => inner.to_bytes(),
+            RippleFieldKind::HookParameterName(inner) => inner.to_bytes(),
+            RippleFieldKind::HookParameterValue(inner) => inner.to_bytes(),
             RippleFieldKind::Account(inner) => inner.to_bytes(),
             RippleFieldKind::Destination(inner) => inner.to_bytes(),
             RippleFieldKind::Hook(inner) => inner.to_bytes(),
+            RippleFieldKind::HookParameter(inner) => inner.to_bytes(),
             RippleFieldKind::Hooks(inner) => inner.to_bytes(),
+            RippleFieldKind::HookParameters(inner) => inner.to_bytes(),
         }
     }
 }
@@ -475,6 +491,28 @@ impl RippleField for CreateCodeField {
         &self.0
     }
 }
+impl RippleField for HookParameterNameField {
+    type Type = BlobType;
+
+    fn field_code() -> u8 {
+        24
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
+impl RippleField for HookParameterValueField {
+    type Type = BlobType;
+
+    fn field_code() -> u8 {
+        25
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
 impl RippleField for AccountField {
     type Type = AccountIDType;
 
@@ -508,11 +546,33 @@ impl RippleField for HookField {
         &self.0
     }
 }
+impl RippleField for HookParameterField {
+    type Type = STObjectType;
+
+    fn field_code() -> u8 {
+        23
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
 impl RippleField for HooksField {
     type Type = STArrayType<HookField>;
 
     fn field_code() -> u8 {
         11
+    }
+
+    fn value_ref(&self) -> &Self::Type {
+        &self.0
+    }
+}
+impl RippleField for HookParametersField {
+    type Type = STArrayType<HookParameterField>;
+
+    fn field_code() -> u8 {
+        19
     }
 
     fn value_ref(&self) -> &Self::Type {
@@ -580,6 +640,16 @@ impl From<CreateCodeField> for RippleFieldKind {
         Self::CreateCode(value)
     }
 }
+impl From<HookParameterNameField> for RippleFieldKind {
+    fn from(value: HookParameterNameField) -> Self {
+        Self::HookParameterName(value)
+    }
+}
+impl From<HookParameterValueField> for RippleFieldKind {
+    fn from(value: HookParameterValueField) -> Self {
+        Self::HookParameterValue(value)
+    }
+}
 impl From<AccountField> for RippleFieldKind {
     fn from(value: AccountField) -> Self {
         Self::Account(value)
@@ -595,8 +665,18 @@ impl From<HookField> for RippleFieldKind {
         Self::Hook(value)
     }
 }
+impl From<HookParameterField> for RippleFieldKind {
+    fn from(value: HookParameterField) -> Self {
+        Self::HookParameter(value)
+    }
+}
 impl From<HooksField> for RippleFieldKind {
     fn from(value: HooksField) -> Self {
         Self::Hooks(value)
+    }
+}
+impl From<HookParametersField> for RippleFieldKind {
+    fn from(value: HookParametersField) -> Self {
+        Self::HookParameters(value)
     }
 }

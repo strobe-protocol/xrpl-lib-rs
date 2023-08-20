@@ -132,6 +132,7 @@ async fn set_hook(setup: &CommonSetup) {
         sequence: setup.account_sequence,
         last_ledger_sequence: create_last_ledger_sequence(setup.last_validated_ledger_index),
         signing_pub_key: setup.private_key.public_key(),
+        hook_parameters: None,
         hooks: vec![Hook {
             hook_api_version: 0,
             hook_on: hex!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbffffe")
@@ -141,6 +142,7 @@ async fn set_hook(setup: &CommonSetup) {
             )
             .into(),
             create_code: include_bytes!("./data/hook-accept.wasm").to_vec(),
+            hook_parameters: vec![],
         }],
     };
     let signed_tx = unsigned_tx.sign(&setup.private_key);
@@ -253,6 +255,7 @@ async fn testnet_xrp_payment() {
         sequence: benefactor.account_sequence,
         last_ledger_sequence: create_last_ledger_sequence(benefactor.last_validated_ledger_index),
         signing_pub_key: benefactor.private_key.public_key(),
+        hook_parameters: None,
         amount: Amount::Xrp(XrpAmount::from_drops(payment_amount).unwrap()),
         destination: beneficiary_address,
     };
@@ -311,6 +314,7 @@ async fn testnet_hook_execution() {
         sequence: benefactor.account_sequence,
         last_ledger_sequence: create_last_ledger_sequence(benefactor.last_validated_ledger_index),
         signing_pub_key: benefactor.private_key.public_key(),
+        hook_parameters: None,
         amount: Amount::Xrp(XrpAmount::from_drops(1000000).unwrap()),
         destination: beneficiary.address,
     };

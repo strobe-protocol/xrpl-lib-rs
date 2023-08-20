@@ -6,13 +6,16 @@ use url::Url;
 
 use crate::{
     address::Address, amount::TokenValue, currency_code::CurrencyCode, hash::Hash,
-    transaction_result::TransactionResult,
+    interop::universal_sleep, transaction_result::TransactionResult,
 };
+
+const RATE_LIMIT_RETRY_WAIT_DURATION: u32 = 5000;
 
 #[derive(Debug)]
 pub struct HttpRpcClient {
     url: Url,
     client: HttpClient,
+    max_rate_limit_attempts: u32,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -23,6 +26,8 @@ pub enum HttpRpcClientError {
     UnsuccessfulStatusCode(reqwest::StatusCode),
     #[error(transparent)]
     UniversalError(UniversalXrplError),
+    #[error("too many attempts on rate limit")]
+    TooManyAttemptsOnRateLimit,
 }
 
 #[derive(Debug, Deserialize, thiserror::Error)]
@@ -452,7 +457,7 @@ enum RpcResponse<T> {
     Error(RpcBaseResponse<RpcError<UniversalXrplError>>),
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "snake_case")]
 enum RpcMethod {
     Submit,
@@ -514,12 +519,16 @@ struct LedgerEntryRequestParams {
 }
 
 impl HttpRpcClient {
-    pub fn new(url: Url) -> Self {
-        Self::new_with_client(url, HttpClient::new())
+    pub fn new(url: Url, max_rate_limit_attempts: u32) -> Self {
+        Self::new_with_client(url, HttpClient::new(), max_rate_limit_attempts)
     }
 
-    pub fn new_with_client(url: Url, client: HttpClient) -> Self {
-        Self { url, client }
+    pub fn new_with_client(url: Url, client: HttpClient, max_rate_limit_attempts: u32) -> Self {
+        Self {
+            url,
+            client,
+            max_rate_limit_attempts,
+        }
     }
 
     pub async fn submit(&self, tx_blob: &[u8]) -> Result<SubmitResult, HttpRpcClientError> {
@@ -614,30 +623,49 @@ impl HttpRpcClient {
         REQ: Serialize,
         RES: DeserializeOwned,
     {
-        let request = self.client.post(self.url.clone()).json(&RpcRequest {
-            method,
-            params: [request],
-        });
+        let mut attempts = self.max_rate_limit_attempts + 1;
 
-        let response = request
-            .send()
-            .await
-            .map_err(HttpRpcClientError::HttpError)?;
+        while attempts > 0 {
+            let request = self.client.post(self.url.clone()).json(&RpcRequest {
+                method: method.clone(),
+                params: [request],
+            });
 
-        let status_code = response.status();
-        if !status_code.is_success() {
-            return Err(HttpRpcClientError::UnsuccessfulStatusCode(status_code));
+            let response = request
+                .send()
+                .await
+                .map_err(HttpRpcClientError::HttpError)?;
+
+            let status_code = response.status();
+
+            // Rippled server will return 503 instead of 429 (too many requests) if it is rate
+            // limited
+            if status_code == reqwest::StatusCode::SERVICE_UNAVAILABLE {
+                attempts -= 1;
+
+                universal_sleep(RATE_LIMIT_RETRY_WAIT_DURATION).await;
+
+                continue;
+            }
+
+            if !status_code.is_success() {
+                return Err(HttpRpcClientError::UnsuccessfulStatusCode(status_code));
+            }
+
+            let body: RpcResponse<RES> = response
+                .json()
+                .await
+                .map_err(HttpRpcClientError::HttpError)?;
+
+            return match body {
+                RpcResponse::Success(body) => Ok(body.result),
+                RpcResponse::Error(body) => {
+                    Err(HttpRpcClientError::UniversalError(body.result.error))
+                }
+            };
         }
 
-        let body: RpcResponse<RES> = response
-            .json()
-            .await
-            .map_err(HttpRpcClientError::HttpError)?;
-
-        match body {
-            RpcResponse::Success(body) => Ok(body.result),
-            RpcResponse::Error(body) => Err(HttpRpcClientError::UniversalError(body.result.error)),
-        }
+        Err(HttpRpcClientError::TooManyAttemptsOnRateLimit)
     }
 }
 

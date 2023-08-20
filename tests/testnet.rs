@@ -35,7 +35,10 @@ struct CommonSetup {
 
 async fn setup() -> CommonSetup {
     let faucet = TestnetFaucet::hooks_testnet_v3();
-    let rpc = HttpRpcClient::new(Url::parse("https://hooks-testnet-v3.xrpl-labs.com/").unwrap());
+    let rpc = HttpRpcClient::new(
+        Url::parse("https://hooks-testnet-v3.xrpl-labs.com/").unwrap(),
+        10000,
+    );
 
     let new_account = get_new_account(&faucet).await;
 
@@ -556,7 +559,10 @@ async fn testnet_tt_invoke_hook_execution_with_hook_parameters() {
 #[tokio::test]
 #[ignore = "skipped by default as RPC is rate limited"]
 async fn testnet_account_lines() {
-    let rpc = HttpRpcClient::new(Url::parse("https://hooks-testnet-v3.xrpl-labs.com/").unwrap());
+    let rpc = HttpRpcClient::new(
+        Url::parse("https://hooks-testnet-v3.xrpl-labs.com/").unwrap(),
+        10000,
+    );
 
     let lines = rpc
         .account_lines(

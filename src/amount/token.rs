@@ -3,6 +3,7 @@
 use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, ParseBigDecimalError};
+use serde::Deserialize;
 
 use crate::{
     address::{Address, AddressFromSliceError, ADDRESS_LENGTH},
@@ -119,6 +120,19 @@ impl FromStr for TokenValue {
         Ok(Self {
             inner: Decimal::from_str(s)?,
         })
+    }
+}
+
+impl<'de> Deserialize<'de> for TokenValue {
+    /// This implementation is for decoding responses from RPC.
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        value
+            .parse()
+            .map_err(|err| serde::de::Error::custom(format!("invalid token value: {}", err)))
     }
 }
 

@@ -4,7 +4,10 @@ use reqwest::Client as HttpClient;
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 use url::Url;
 
-use crate::{address::Address, hash::Hash, transaction_result::TransactionResult};
+use crate::{
+    address::Address, amount::TokenValue, currency_code::CurrencyCode, hash::Hash,
+    transaction_result::TransactionResult,
+};
 
 #[derive(Debug)]
 pub struct HttpRpcClient {
@@ -294,6 +297,52 @@ pub enum AccountObjectsResult {
     Error(RpcError<AccountObjectsError>),
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub enum AccountLinesError {
+    /// The address specified in the account field of the request does not correspond to an account
+    /// in the ledger.
+    #[serde(rename = "actNotFound")]
+    ActNotFound,
+    /// The ledger specified by the ledger_hash or ledger_index does not exist, or it does exist
+    /// but the server does not have it.
+    #[serde(rename = "lgrNotFound")]
+    LgrNotFound,
+    /// If the marker field provided is not acceptable.
+    #[serde(rename = "lgrNotFound")]
+    ActMalformed,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AccountLine {
+    /// The unique Address of the counterparty to this trust line.
+    pub account: Address,
+    /// Representation of the numeric balance currently held against this line. A positive balance
+    /// means that the perspective account holds value; a negative balance means that the
+    /// perspective account owes value.
+    pub balance: TokenValue,
+    /// Currency Code identifying what currency this trust line can hold.
+    pub currency: CurrencyCode,
+    /// The maximum amount of the given currency that this account is willing to owe the peer
+    /// account
+    pub limit: TokenValue,
+    /// The maximum amount of currency that the counterparty account is willing to owe the
+    /// perspective account
+    pub limit_peer: TokenValue,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AccountLinesSuccess {
+    pub account: Address,
+    pub lines: Vec<AccountLine>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum AccountLinesResult {
+    Success(AccountLinesSuccess),
+    Error(RpcError<AccountLinesError>),
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LedgerIndexShortcut {
@@ -341,6 +390,7 @@ enum RpcMethod {
     Tx,
     Ledger,
     AccountObjects,
+    AccountLines,
 }
 
 #[derive(Debug, Serialize)]
@@ -369,6 +419,13 @@ struct TxRequestParams {
 struct AccountObjectsRequestParams {
     account: Address,
     ledger_index: LedgerIndex,
+}
+
+#[derive(Debug, Serialize)]
+struct AccountLinesRequestParams {
+    account: Address,
+    ledger_index: LedgerIndex,
+    peer: Option<Address>,
 }
 
 impl HttpRpcClient {
@@ -429,6 +486,23 @@ impl HttpRpcClient {
             &AccountObjectsRequestParams {
                 account,
                 ledger_index,
+            },
+        )
+        .await
+    }
+
+    pub async fn account_lines(
+        &self,
+        account: Address,
+        ledger_index: LedgerIndex,
+        peer: Option<Address>,
+    ) -> Result<AccountLinesResult, HttpRpcClientError> {
+        self.send_rpc_request::<_, AccountLinesResult>(
+            RpcMethod::AccountLines,
+            &AccountLinesRequestParams {
+                account,
+                ledger_index,
+                peer,
             },
         )
         .await

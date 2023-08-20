@@ -11,9 +11,9 @@ use xrpl_lib::{
     currency_code::{CurrencyCode, StandardCurrencyCode},
     hash::Hash,
     rpc::{
-        AccountInfoError, AccountInfoResult, AccountObjectLedgerEntryType, AccountObjectsResult,
-        HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut, SubmitResult,
-        Validation,
+        AccountInfoError, AccountInfoResult, AccountLinesResult, AccountObjectLedgerEntryType,
+        AccountObjectsResult, HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut,
+        SubmitResult, Validation,
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{
@@ -551,4 +551,27 @@ async fn testnet_tt_invoke_hook_execution_with_hook_parameters() {
             panic!("failed to submit transaction: {:?}", rpc_error.error)
         }
     }
+}
+#[tokio::test]
+#[ignore = "skipped by default as RPC is rate limited"]
+async fn testnet_account_lines() {
+    let rpc = HttpRpcClient::new(Url::parse("https://hooks-testnet-v3.xrpl-labs.com/").unwrap());
+
+    let lines = rpc
+        .account_lines(
+            Address::from_base58check("r4UniHrv3rvnqoqStn8co7PmXN112NMimX").unwrap(),
+            LedgerIndex::Shortcut(LedgerIndexShortcut::Validated),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let lines = match lines {
+        AccountLinesResult::Success(value) => value,
+        AccountLinesResult::Error(rpc_error) => {
+            panic!("failed to fetch account lines: {:?}", rpc_error.error)
+        }
+    };
+
+    assert!(lines.lines.len() > 1);
 }

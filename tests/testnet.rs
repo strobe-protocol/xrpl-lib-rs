@@ -11,23 +11,21 @@ use xrpl_lib::{
     currency_code::{CurrencyCode, StandardCurrencyCode},
     rpc::{
         AccountInfoError, AccountInfoResult, AccountObjectLedgerEntryType, AccountObjectsResult,
-        HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut, LedgerResult,
-        SubmitResult, Validation,
+        HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut, SubmitResult,
+        Validation,
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{
         flags, Hook, UnsignedAccountSetTransaction, UnsignedPaymentTransaction,
         UnsignedSetHookTransaction, UnsignedTrustSetTransaction,
     },
-    utils::{create_last_ledger_sequence, wait_for_transaction},
+    utils::{get_transaction_context, wait_for_transaction},
 };
 
 struct CommonSetup {
     private_key: PrivateKey,
     address: Address,
-    account_sequence: u32,
     rpc: HttpRpcClient,
-    last_validated_ledger_index: u32,
 }
 
 async fn setup() -> CommonSetup {
@@ -54,35 +52,23 @@ async fn setup() -> CommonSetup {
 
         attempts += 1;
 
-        let (account_info_result, last_validated_ledger_result) = tokio::join!(
-            rpc.account_info(
+        let account_info = rpc
+            .account_info(
                 new_account.address,
-                LedgerIndex::Shortcut(LedgerIndexShortcut::Validated)
-            ),
-            rpc.ledger(LedgerIndex::Shortcut(LedgerIndexShortcut::Validated))
-        );
-        let account_info = account_info_result.expect("failed to get account info");
-        let last_validated_ledger =
-            last_validated_ledger_result.expect("failed to get last validated ledger");
+                LedgerIndex::Shortcut(LedgerIndexShortcut::Validated),
+            )
+            .await
+            .expect("failed to get account info");
 
         match account_info {
             AccountInfoResult::Success(account_info) => {
                 assert!(account_info.validated);
 
-                match last_validated_ledger {
-                    LedgerResult::Success(ledger_success) => {
-                        return CommonSetup {
-                            private_key,
-                            address: new_account.address,
-                            account_sequence: account_info.account_data.sequence,
-                            last_validated_ledger_index: ledger_success.ledger_index,
-                            rpc,
-                        };
-                    }
-                    LedgerResult::Error(ledger_error) => {
-                        panic!("unexpected ledger error: {:?}", ledger_error.error)
-                    }
-                }
+                return CommonSetup {
+                    private_key,
+                    address: new_account.address,
+                    rpc,
+                };
             }
             AccountInfoResult::Error(err) => match err.error {
                 // If the account is not found, wait for the ledger to find and validate the account
@@ -129,12 +115,15 @@ async fn get_new_account(faucet: &TestnetFaucet) -> NewAccountResult {
 }
 
 async fn set_hook(setup: &CommonSetup) {
+    let txn_ctx = get_transaction_context(setup.address, &setup.rpc)
+        .await
+        .unwrap();
     let unsigned_tx = UnsignedSetHookTransaction {
         account: setup.address,
         network_id: 21338,
         fee: XrpAmount::from_drops(1000000000).unwrap(),
-        sequence: setup.account_sequence,
-        last_ledger_sequence: create_last_ledger_sequence(setup.last_validated_ledger_index),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
         signing_pub_key: setup.private_key.public_key(),
         hook_parameters: None,
         hooks: vec![Hook {
@@ -252,12 +241,15 @@ async fn testnet_xrp_payment() {
         benefactor_balance_before - payment_fee - payment_amount;
     let expected_beneficiary_balance_after = beneficiary_balance_before + payment_amount;
 
+    let txn_ctx = get_transaction_context(benefactor.address, &benefactor.rpc)
+        .await
+        .unwrap();
     let unsigned_tx = UnsignedPaymentTransaction {
         account: benefactor.address,
         network_id: 21338,
         fee: XrpAmount::from_drops(payment_fee).unwrap(),
-        sequence: benefactor.account_sequence,
-        last_ledger_sequence: create_last_ledger_sequence(benefactor.last_validated_ledger_index),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
         signing_pub_key: benefactor.private_key.public_key(),
         hook_parameters: None,
         amount: Amount::Xrp(XrpAmount::from_drops(payment_amount).unwrap()),
@@ -305,6 +297,10 @@ async fn testnet_xrp_payment() {
 async fn testnet_account_set() {
     let setup = setup().await;
 
+    let txn_ctx = get_transaction_context(setup.address, &setup.rpc)
+        .await
+        .unwrap();
+
     let unsigned_tx = UnsignedAccountSetTransaction {
         account: setup.address,
         network_id: 21338,
@@ -314,8 +310,8 @@ async fn testnet_account_set() {
         ],
         set_flag: Some(flags::AccountSetAsfFlags::RequireAuth),
         fee: XrpAmount::from_drops(100).unwrap(),
-        sequence: setup.account_sequence,
-        last_ledger_sequence: create_last_ledger_sequence(setup.last_validated_ledger_index),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
         signing_pub_key: setup.private_key.public_key(),
         hook_parameters: None,
     };
@@ -348,13 +344,17 @@ async fn testnet_account_set() {
 async fn testnet_trust_set() {
     let setup = setup().await;
 
+    let txn_ctx = get_transaction_context(setup.address, &setup.rpc)
+        .await
+        .unwrap();
+
     let unsigned_tx = UnsignedTrustSetTransaction {
         account: setup.address,
         network_id: 21338,
         flags: vec![flags::TrustSetFlags::SetFreeze],
         fee: XrpAmount::from_drops(100).unwrap(),
-        sequence: setup.account_sequence,
-        last_ledger_sequence: create_last_ledger_sequence(setup.last_validated_ledger_index),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
         signing_pub_key: setup.private_key.public_key(),
         limit_amount: TokenAmount {
             value: "100".parse().unwrap(),
@@ -396,13 +396,16 @@ async fn testnet_hook_execution() {
     let beneficiary_hook_object = get_account_hook_object(&beneficiary).await;
 
     let benefactor = setup().await;
+    let txn_ctx = get_transaction_context(benefactor.address, &beneficiary.rpc)
+        .await
+        .unwrap();
 
     let unsigned_tx = UnsignedPaymentTransaction {
         account: benefactor.address,
         network_id: 21338,
         fee: XrpAmount::from_drops(100000000).unwrap(),
-        sequence: benefactor.account_sequence,
-        last_ledger_sequence: create_last_ledger_sequence(benefactor.last_validated_ledger_index),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
         signing_pub_key: benefactor.private_key.public_key(),
         hook_parameters: None,
         amount: Amount::Xrp(XrpAmount::from_drops(1000000).unwrap()),

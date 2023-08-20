@@ -343,6 +343,76 @@ pub enum AccountLinesResult {
     Error(RpcError<AccountLinesError>),
 }
 
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+pub enum LedgerEntryError {
+    /// The request specified a removed field, such as generator.
+    #[serde(rename = "deprecatedFeature")]
+    DeprecatedFeature,
+    /// The requested ledger object does not exist in the ledger.
+    #[serde(rename = "entryNotFound")]
+    EntryNotFound,
+    /// The ledger specified by the ledger_hash or ledger_index does not exist, or it does exist
+    /// but the server does not have it.
+    #[serde(rename = "lgrNotFound")]
+    LgrNotFound,
+    /// The request improperly specified an Address field.
+    #[serde(rename = "malformedAddress")]
+    MalformedAddress,
+    /// The request improperly specified a Currency Code field.
+    #[serde(rename = "malformedCurrency")]
+    MalformedCurrency,
+    /// The request improperly specified the escrow.owner sub-field.
+    #[serde(rename = "malformedOwner")]
+    MalformedOwner,
+    /// The request provided an invalid combination of fields, or provided the wrong type for one
+    /// or more fields.
+    #[serde(rename = "malformedRequest")]
+    MalformedRequest,
+    /// The fields provided in the request did not match any of the expected request formats.
+    #[serde(rename = "unknownOption")]
+    UnknownOption,
+}
+
+// TODO: Implement other ledger entry types
+#[derive(Debug, Deserialize)]
+#[serde(tag = "LedgerEntryType")]
+pub enum LedgerEntryNode {
+    #[serde(rename = "HookState")]
+    HookState(LedgerEntryHookState),
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct LedgerEntryHookState {
+    /// 32 bytes long hex string representing the key used to reference the hook data.
+    /// Padded with zeros from the left if the key is shorter than 32 bytes.
+    #[serde(deserialize_with = "hex::serde::deserialize")]
+    pub hook_state_key: Vec<u8>,
+    /// Hex string in little endian format. Maximum 128 bytes.
+    #[serde(deserialize_with = "hex::serde::deserialize")]
+    pub hook_state_data: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LedgerEntrySuccess {
+    /// The unique ID of this ledger object.
+    #[serde(deserialize_with = "hex::serde::deserialize")]
+    pub index: Vec<u8>,
+    // The ledger index of the ledger that was used when retrieving this data.
+    pub ledger_current_index: u64,
+    // Object containing the data of this ledger object, according to the ledger format.
+    pub node: LedgerEntryNode,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum LedgerEntryResult {
+    Success(LedgerEntrySuccess),
+    Error(RpcError<LedgerEntryError>),
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LedgerIndexShortcut {
@@ -391,6 +461,7 @@ enum RpcMethod {
     Ledger,
     AccountObjects,
     AccountLines,
+    LedgerEntry,
 }
 
 #[derive(Debug, Serialize)]
@@ -426,6 +497,20 @@ struct AccountLinesRequestParams {
     account: Address,
     ledger_index: LedgerIndex,
     peer: Option<Address>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LedgerEntryHookStateRequestParam {
+    pub account: Address,
+    #[serde(serialize_with = "hex::serde::serialize_upper")]
+    pub key: Vec<u8>,
+    #[serde(serialize_with = "hex::serde::serialize_upper")]
+    pub namespace_id: Vec<u8>,
+}
+
+#[derive(Debug, Serialize)]
+struct LedgerEntryRequestParams {
+    pub hook_state: LedgerEntryHookStateRequestParam,
 }
 
 impl HttpRpcClient {
@@ -504,6 +589,18 @@ impl HttpRpcClient {
                 ledger_index,
                 peer,
             },
+        )
+        .await
+    }
+
+    // TODO: implement other ledger entry types
+    pub async fn ledger_entry(
+        &self,
+        hook_state: LedgerEntryHookStateRequestParam,
+    ) -> Result<LedgerEntryResult, HttpRpcClientError> {
+        self.send_rpc_request::<_, LedgerEntryResult>(
+            RpcMethod::LedgerEntry,
+            &LedgerEntryRequestParams { hook_state },
         )
         .await
     }

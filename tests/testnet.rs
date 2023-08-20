@@ -12,8 +12,9 @@ use xrpl_lib::{
     hash::Hash,
     rpc::{
         AccountInfoError, AccountInfoResult, AccountLinesResult, AccountObjectLedgerEntryType,
-        AccountObjectsResult, HookAccountObject, HttpRpcClient, LedgerIndex, LedgerIndexShortcut,
-        SubmitResult, Validation,
+        AccountObjectsResult, HookAccountObject, HttpRpcClient, LedgerEntryHookStateRequestParam,
+        LedgerEntryNode, LedgerEntryResult, LedgerIndex, LedgerIndexShortcut, SubmitResult,
+        Validation,
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{
@@ -22,6 +23,9 @@ use xrpl_lib::{
     },
     utils::{get_transaction_context, wait_for_transaction},
 };
+
+const HOOK_NAMESPACE: [u8; 32] =
+    hex!("0000000000000000000000000000000000000000000000000000000000000001");
 
 struct CommonSetup {
     private_key: PrivateKey,
@@ -130,10 +134,7 @@ async fn set_hook(setup: &CommonSetup, hook_on: Hash, create_code: Vec<u8>) {
         hooks: vec![Hook {
             hook_api_version: 0,
             hook_on,
-            hook_namespace: hex!(
-                "0000000000000000000000000000000000000000000000000000000000000001"
-            )
-            .into(),
+            hook_namespace: HOOK_NAMESPACE.into(),
             create_code,
             hook_parameters: vec![],
         }],
@@ -574,4 +575,111 @@ async fn testnet_account_lines() {
     };
 
     assert!(lines.lines.len() > 1);
+}
+
+#[tokio::test]
+#[ignore = "skipped by default as access to faucet is rate limited"]
+async fn testnet_hook_ledger_entry() {
+    let hook_account = setup().await;
+
+    set_hook(
+        &hook_account,
+        hex!("fffffffffffffffffffffffffffffffffffffff7ffffffffffffffffffbfffff").into(),
+        include_bytes!("./data/hook-state.wasm").to_vec(),
+    )
+    .await;
+    let hook_account_hook_object = get_account_hook_object(&hook_account).await;
+    let invoker = setup().await;
+    let txn_ctx = get_transaction_context(invoker.address, &hook_account.rpc)
+        .await
+        .unwrap();
+
+    let unsigned_tx = UnsignedInvokeTransaction {
+        account: invoker.address,
+        network_id: 21338,
+        flags: 0,
+        fee: XrpAmount::from_drops(100000000).unwrap(),
+        sequence: txn_ctx.account_sequence,
+        last_ledger_sequence: txn_ctx.last_ledger_sequence,
+        signing_pub_key: invoker.private_key.public_key(),
+        hook_parameters: None,
+        destination: hook_account.address,
+    };
+    let signed_tx = unsigned_tx.sign(&invoker.private_key);
+
+    let invoke_result = invoker
+        .rpc
+        .submit(&signed_tx.to_bytes())
+        .await
+        .expect("failed to submit tx");
+
+    match invoke_result {
+        SubmitResult::Success(submit_success) => {
+            let validated_tx = wait_for_transaction(submit_success.tx_json.hash, &invoker.rpc)
+                .await
+                .expect("failed to wait for transaction");
+
+            assert_eq!(signed_tx.hash(), validated_tx.hash);
+            assert_eq!(invoker.address, validated_tx.account);
+
+            match validated_tx.validation {
+                Validation::Validated(meta) => {
+                    let hook_executions = meta
+                        .hook_executions
+                        .expect("hook executions are missing from transaction metadata");
+
+                    assert_eq!(hook_executions.len(), 1);
+
+                    let hook_execution_holder = &hook_executions[0];
+
+                    assert_eq!(
+                        hook_execution_holder.hook_execution.hook_account,
+                        hook_account.address
+                    );
+                    assert_eq!(
+                        hook_account_hook_object.hook_hash,
+                        hook_execution_holder.hook_execution.hook_hash
+                    );
+                    assert!(hook_execution_holder.hook_execution.hook_return_code >= 0);
+                    assert_eq!(hook_execution_holder.hook_execution.hook_emit_count, 0);
+
+                    let hook_account_address_bytes = hook_account.address.to_bytes();
+                    let mut padded_hook_account_address_bytes = [0; 32];
+                    padded_hook_account_address_bytes[12..].copy_from_slice(
+                        &hook_account_address_bytes[..hook_account_address_bytes.len()],
+                    );
+
+                    let hook_state_ledger_entry = hook_account
+                        .rpc
+                        .ledger_entry(LedgerEntryHookStateRequestParam {
+                            account: hook_account.address,
+                            key: padded_hook_account_address_bytes.to_vec(),
+                            namespace_id: HOOK_NAMESPACE.to_vec(),
+                        })
+                        .await
+                        .expect("failed to get hook state ledger entry");
+
+                    match hook_state_ledger_entry {
+                        LedgerEntryResult::Success(success) => match success.node {
+                            LedgerEntryNode::HookState(node) => {
+                                let mut reversed_state_data = node.hook_state_data.clone();
+                                reversed_state_data.reverse();
+                                assert_eq!(reversed_state_data, hex!("000000000000000C"));
+                            }
+                            _ => {
+                                panic!("unexpected ledger entry type");
+                            }
+                        },
+                        LedgerEntryResult::Error(error) => {
+                            panic!("failed to get hook state ledger entry: {:?}", error.error);
+                        }
+                    }
+                }
+                _ => panic!("transaction metadata is missing"),
+            }
+        }
+        SubmitResult::Error(rpc_error) => {
+            panic!("failed to submit transaction: {:?}", rpc_error.error)
+        }
+    }
 }

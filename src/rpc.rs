@@ -262,11 +262,19 @@ pub struct HookAccountObjectHolder {
     pub hook: HookAccountObject,
 }
 
-// TODO: specify other types
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum AccountObjectLedgerEntryType {
     Hook,
-    Other(String),
+    Check,
+    DepositPreauth,
+    Escrow,
+    NftOffer,
+    NftPage,
+    Offer,
+    PaymentChannel,
+    SignerList,
+    State,
+    Ticket,
 }
 
 #[derive(Debug, Deserialize)]
@@ -492,9 +500,26 @@ struct TxRequestParams {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountObjectLedgerEntryTypeRequestParam {
+    Hook,
+    Check,
+    DepositPreauth,
+    Escrow,
+    NftOffer,
+    NftPage,
+    Offer,
+    PaymentChannel,
+    SignerList,
+    State,
+    Ticket,
+}
+
+#[derive(Debug, Serialize)]
 struct AccountObjectsRequestParams {
     account: Address,
     ledger_index: LedgerIndex,
+    r#type: Option<AccountObjectLedgerEntryTypeRequestParam>,
 }
 
 #[derive(Debug, Serialize)]
@@ -574,12 +599,14 @@ impl HttpRpcClient {
         &self,
         account: Address,
         ledger_index: LedgerIndex,
+        r#type: Option<AccountObjectLedgerEntryTypeRequestParam>,
     ) -> Result<AccountObjectsResult, HttpRpcClientError> {
         self.send_rpc_request::<_, AccountObjectsResult>(
             RpcMethod::AccountObjects,
             &AccountObjectsRequestParams {
                 account,
                 ledger_index,
+                r#type,
             },
         )
         .await

@@ -12,9 +12,9 @@ use xrpl_lib::{
     hash::Hash,
     rpc::{
         AccountInfoError, AccountInfoResult, AccountLinesResult, AccountObjectLedgerEntryType,
-        AccountObjectsResult, HookAccountObject, HttpRpcClient, LedgerEntryHookStateRequestParam,
-        LedgerEntryNode, LedgerEntryResult, LedgerIndex, LedgerIndexShortcut, SubmitResult,
-        Validation,
+        AccountObjectLedgerEntryTypeRequestParam, AccountObjectsResult, HookAccountObject,
+        HttpRpcClient, LedgerEntryHookStateRequestParam, LedgerEntryNode, LedgerEntryResult,
+        LedgerIndex, LedgerIndexShortcut, SubmitResult, Validation,
     },
     testnet_faucet::{NewAccountResult, TestnetFaucet, TestnetFaucetError},
     transaction::{
@@ -173,6 +173,7 @@ async fn get_account_hook_object(setup: &CommonSetup) -> HookAccountObject {
         .account_objects(
             setup.address,
             LedgerIndex::Shortcut(LedgerIndexShortcut::Validated),
+            Some(AccountObjectLedgerEntryTypeRequestParam::Hook),
         )
         .await
         .expect("failed to get account objects");

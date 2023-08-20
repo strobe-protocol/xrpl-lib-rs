@@ -45,7 +45,7 @@ pub async fn wait_for_transaction(
     let mut attempts = 0;
 
     loop {
-        if attempts >= 20 {
+        if attempts >= 5 {
             return Err(WaitForTransactionError::Timeout);
         }
 

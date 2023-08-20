@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 bigdecimal = "0.4.1"
 byteorder = "1.4.3"
-hex = "0.4.3"
+hex = { version = "0.4.3", features = ["serde"] }
 k256 = "0.13.1"
 num-bigint = "0.4.3"
 num-traits = "0.2.15"

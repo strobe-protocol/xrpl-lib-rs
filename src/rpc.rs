@@ -194,8 +194,12 @@ pub struct HookExecution {
     /// The account that owns the hook
     pub hook_account: Address,
     /// Success if greater than or equal to 0, failure if less than 0.
-    #[serde(deserialize_with = "deserialize_string_as_number")]
-    pub hook_return_code: i32,
+    #[serde(deserialize_with = "deserialize_hex_string_as_i64")]
+    pub hook_return_code: i64,
+    /// The string returned by the hook.
+    #[serde(deserialize_with = "hex::serde::deserialize")]
+    pub hook_return_string: Vec<u8>,
+    pub hook_emit_count: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -522,4 +526,22 @@ where
 {
     let s = String::deserialize(deserializer)?;
     s.parse::<T>().map_err(serde::de::Error::custom)
+}
+
+fn deserialize_hex_string_as_i64<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    const SIGN_BIT_MASK: u64 = 0x8000000000000000;
+
+    let s = String::deserialize(deserializer)?;
+    let maybe_signed_number = u64::from_str_radix(s.as_str(), 16)
+        .map_err(|_| serde::de::Error::custom("invalid hexadecimal number"))?;
+
+    let is_negative = maybe_signed_number & SIGN_BIT_MASK != 0;
+    if is_negative {
+        Ok(-((maybe_signed_number ^ SIGN_BIT_MASK) as i64))
+    } else {
+        Ok(maybe_signed_number as i64)
+    }
 }

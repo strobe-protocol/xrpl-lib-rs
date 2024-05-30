@@ -7,12 +7,6 @@ const ALPHABET: &[u8; ALPHABET_SIZE] =
     b"rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
 const ALPHABET_ZERO: char = ALPHABET[0] as char;
 
-#[derive(Debug)]
-pub struct DecodeResult {
-    pub version: u8,
-    pub payload: Vec<u8>,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeError {
     #[error("invalid digit: {0}")]
@@ -21,8 +15,8 @@ pub enum DecodeError {
     ChecksumMismatch { expected: [u8; 4], actual: [u8; 4] },
 }
 
-pub fn encode(version: u8, payload: &[u8]) -> String {
-    let mut buffer = vec![version];
+pub fn encode(version: &[u8], payload: &[u8]) -> String {
+    let mut buffer = version.to_vec();
     buffer.extend_from_slice(payload);
 
     let mut hasher = sha2::Sha256::new();
@@ -73,7 +67,7 @@ pub fn encode(version: u8, payload: &[u8]) -> String {
     result
 }
 
-pub fn decode(encoded: &str) -> Result<DecodeResult, DecodeError> {
+pub fn decode(encoded: &str) -> Result<Vec<u8>, DecodeError> {
     let mut bytes = vec![];
 
     let mut scale = BigUint::one();
@@ -120,34 +114,60 @@ pub fn decode(encoded: &str) -> Result<DecodeResult, DecodeError> {
         });
     }
 
-    Ok(DecodeResult {
-        version: content[0],
-        payload: content[1..].to_vec(),
-    })
+    Ok(content.to_vec())
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::secret::Curve;
+
     use super::*;
 
     use hex_literal::hex;
 
     struct TestItem {
-        version: u8,
+        version: &'static [u8],
         payload: &'static [u8],
         encoded: &'static str,
+        curve: Option<Curve>,
     }
 
     const TEST_ITEMS: &[TestItem] = &[
         TestItem {
-            version: 0x21,
+            version: &[0x21],
             payload: &hex!("10ee423d1d21682fa4cbb6297f6f6fec"),
             encoded: "spvyv3vG6GBG9sA6o4on8YDpxp9ZZ",
+            curve: Some(Curve::Secp256k1),
         },
         TestItem {
-            version: 0x0,
+            version: &[0x01, 0xe1, 0x4b],
+            payload: &hex!("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            encoded: "sEdV19BLfeQeKdEXyYA4NhjPJe6XBfG",
+            curve: Some(Curve::Ed25519),
+        },
+        TestItem {
+            version: &[0x21],
+            payload: &hex!("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            encoded: "saGwBRReqUNKuWNLpUAq8i8NkXEPN",
+            curve: Some(Curve::Secp256k1),
+        },
+        TestItem {
+            version: &[0x01, 0xe1, 0x4b],
+            payload: &hex!("4C3A1D213FBDFB14C7C28D609469B341"),
+            encoded: "sEdTM1uX8pu2do5XvTnutH6HsouMaM2",
+            curve: Some(Curve::Ed25519),
+        },
+        TestItem {
+            version: &[0x21],
+            payload: &hex!("CF2DE378FBDD7E2EE87D486DFB5A7BFF"),
+            encoded: "sn259rEFXrQrWyx3Q7XneWcwV6dfL",
+            curve: Some(Curve::Secp256k1),
+        },
+        TestItem {
+            version: &[0x0],
             payload: &hex!("2a73c099d4b6e693facac67be9dc780043d78b12"),
             encoded: "rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX",
+            curve: None,
         },
     ];
 
@@ -165,8 +185,31 @@ mod tests {
         for item in TEST_ITEMS.iter() {
             let decoded = decode(item.encoded).unwrap();
 
-            assert_eq!(item.version, decoded.version);
-            assert_eq!(item.payload, decoded.payload.as_slice());
+            match item.curve {
+                Some(curve) => match curve {
+                    Curve::Ed25519 => {
+                        let version = &decoded[0..3];
+                        let payload = &decoded[3..];
+
+                        assert_eq!(item.version, version);
+                        assert_eq!(item.payload, payload);
+                    }
+                    Curve::Secp256k1 => {
+                        let version = &decoded[0..1];
+                        let payload = &decoded[1..];
+
+                        assert_eq!(item.version, version);
+                        assert_eq!(item.payload, payload);
+                    }
+                },
+                None => {
+                    let version = &decoded[0..1];
+                    let payload = &decoded[1..];
+
+                    assert_eq!(item.version, version);
+                    assert_eq!(item.payload, payload);
+                }
+            }
         }
     }
 }

@@ -32,6 +32,7 @@ impl Address {
     pub fn from_byte_slice(bytes: &[u8]) -> Result<Self, AddressFromSliceError> {
         if bytes.len() == ADDRESS_LENGTH {
             Ok(Self {
+                // Already checked length
                 inner: bytes.try_into().unwrap(),
             })
         } else {
@@ -42,24 +43,25 @@ impl Address {
     pub fn from_base58check(encoded: &str) -> Result<Self, AddressFromEncodedError> {
         let decoded = base58check::decode(encoded).map_err(AddressFromEncodedError::DecodeError)?;
 
-        if decoded.version != ADDRESS_VERSION {
-            return Err(AddressFromEncodedError::InvalidVersion(decoded.version));
+        let version = decoded[0];
+        let payload = &decoded[1..];
+
+        if version != ADDRESS_VERSION {
+            return Err(AddressFromEncodedError::InvalidVersion(version));
         }
 
-        if decoded.payload.len() != ADDRESS_LENGTH {
-            return Err(AddressFromEncodedError::InvalidPayloadLength(
-                decoded.payload.len(),
-            ));
+        if payload.len() != ADDRESS_LENGTH {
+            return Err(AddressFromEncodedError::InvalidPayloadLength(payload.len()));
         }
 
         Ok(Self {
             // We already checked length so it's fine to unwrap
-            inner: decoded.payload.try_into().unwrap(),
+            inner: payload.try_into().unwrap(),
         })
     }
 
     pub fn to_base58check(&self) -> String {
-        base58check::encode(ADDRESS_VERSION, &self.inner)
+        base58check::encode(&[ADDRESS_VERSION], &self.inner)
     }
 
     pub fn to_bytes(&self) -> [u8; ADDRESS_LENGTH] {

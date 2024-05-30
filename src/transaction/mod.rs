@@ -1,3 +1,4 @@
+use ed25519_dalek::SignatureError;
 use sha2::{Digest, Sha512};
 
 use crate::{
@@ -18,12 +19,10 @@ pub struct UnsignedPaymentTransaction {
     //
     // Common tx fields
     pub account: Address,
-    pub network_id: u32,
     pub fee: XrpAmount,
     pub sequence: u32,
     pub last_ledger_sequence: u32,
     pub signing_pub_key: PublicKey,
-    pub hook_parameters: Option<Vec<HookParameter>>,
     //
     // Payment specific fields
     pub amount: Amount,
@@ -143,36 +142,24 @@ pub struct HookParameter {
 }
 
 impl UnsignedPaymentTransaction {
-    pub fn sign(&self, key: &PrivateKey) -> SignedPaymentTransaction {
-        SignedPaymentTransaction {
+    pub fn sign(&self, key: &PrivateKey) -> Result<SignedPaymentTransaction, SignatureError> {
+        Ok(SignedPaymentTransaction {
             payload: self.clone(),
-            signature: key.sign_hash(&self.sig_hash()),
-        }
+            signature: key.sign_hash(&self.sig_hash())?,
+        })
     }
 
     pub fn sig_hash(&self) -> Hash {
-        let mut fields: Vec<RippleFieldKind> = vec![
+        let fields: Vec<RippleFieldKind> = vec![
             TransactionTypeField(UInt16Type(0x00)).into(),
-            NetworkIdField(UInt32Type(self.network_id)).into(),
             SequenceField(UInt32Type(self.sequence)).into(),
             LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
             AmountField(AmountType(self.amount.clone())).into(),
             FeeField(AmountType(Amount::Xrp(self.fee))).into(),
-            SigningPubKeyField(BlobType(
-                self.signing_pub_key.to_compressed_bytes_be().to_vec(),
-            ))
-            .into(),
+            SigningPubKeyField(BlobType(self.signing_pub_key.to_bytes_be().to_vec())).into(),
             AccountField(AccountIDType(self.account)).into(),
             DestinationField(AccountIDType(self.destination)).into(),
         ];
-        if let Some(hook_parameters) = &self.hook_parameters {
-            fields.push(
-                HookParametersField(STArrayType(
-                    hook_parameters.iter().map(|item| item.into()).collect(),
-                ))
-                .into(),
-            );
-        }
 
         // TODO: sort fields
 
@@ -193,11 +180,11 @@ impl UnsignedPaymentTransaction {
 }
 
 impl UnsignedSetHookTransaction {
-    pub fn sign(&self, key: &PrivateKey) -> SignedSetHookTransaction {
-        SignedSetHookTransaction {
+    pub fn sign(&self, key: &PrivateKey) -> Result<SignedSetHookTransaction, SignatureError> {
+        Ok(SignedSetHookTransaction {
             payload: self.clone(),
-            signature: key.sign_hash(&self.sig_hash()),
-        }
+            signature: key.sign_hash(&self.sig_hash())?,
+        })
     }
 
     pub fn sig_hash(&self) -> Hash {
@@ -207,10 +194,7 @@ impl UnsignedSetHookTransaction {
             SequenceField(UInt32Type(self.sequence)).into(),
             LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
             FeeField(AmountType(Amount::Xrp(self.fee))).into(),
-            SigningPubKeyField(BlobType(
-                self.signing_pub_key.to_compressed_bytes_be().to_vec(),
-            ))
-            .into(),
+            SigningPubKeyField(BlobType(self.signing_pub_key.to_bytes_be().to_vec())).into(),
             AccountField(AccountIDType(self.account)).into(),
             HooksField(STArrayType(
                 self.hooks.iter().map(|item| item.into()).collect(),
@@ -245,11 +229,11 @@ impl UnsignedSetHookTransaction {
 }
 
 impl UnsignedAccountSetTransaction {
-    pub fn sign(&self, key: &PrivateKey) -> SignedAccountSetTransaction {
-        SignedAccountSetTransaction {
+    pub fn sign(&self, key: &PrivateKey) -> Result<SignedAccountSetTransaction, SignatureError> {
+        Ok(SignedAccountSetTransaction {
             payload: self.clone(),
-            signature: key.sign_hash(&self.sig_hash()),
-        }
+            signature: key.sign_hash(&self.sig_hash())?,
+        })
     }
 
     pub fn sig_hash(&self) -> Hash {
@@ -270,10 +254,7 @@ impl UnsignedAccountSetTransaction {
         }
         fields.extend(vec![
             FeeField(AmountType(Amount::Xrp(self.fee))).into(),
-            SigningPubKeyField(BlobType(
-                self.signing_pub_key.to_compressed_bytes_be().to_vec(),
-            ))
-            .into(),
+            SigningPubKeyField(BlobType(self.signing_pub_key.to_bytes_be().to_vec())).into(),
         ]);
         fields.push(AccountField(AccountIDType(self.account)).into());
         if let Some(hook_parameters) = &self.hook_parameters {
@@ -304,11 +285,11 @@ impl UnsignedAccountSetTransaction {
 }
 
 impl UnsignedTrustSetTransaction {
-    pub fn sign(&self, key: &PrivateKey) -> SignedTrustSetTransaction {
-        SignedTrustSetTransaction {
+    pub fn sign(&self, key: &PrivateKey) -> Result<SignedTrustSetTransaction, SignatureError> {
+        Ok(SignedTrustSetTransaction {
             payload: self.clone(),
-            signature: key.sign_hash(&self.sig_hash()),
-        }
+            signature: key.sign_hash(&self.sig_hash())?,
+        })
     }
 
     pub fn sig_hash(&self) -> Hash {
@@ -325,10 +306,7 @@ impl UnsignedTrustSetTransaction {
             LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
             LimitAmountField(AmountType(Amount::Token(self.limit_amount.clone()))).into(),
             FeeField(AmountType(Amount::Xrp(self.fee))).into(),
-            SigningPubKeyField(BlobType(
-                self.signing_pub_key.to_compressed_bytes_be().to_vec(),
-            ))
-            .into(),
+            SigningPubKeyField(BlobType(self.signing_pub_key.to_bytes_be().to_vec())).into(),
             AccountField(AccountIDType(self.account)).into(),
         ];
 
@@ -351,11 +329,11 @@ impl UnsignedTrustSetTransaction {
 }
 
 impl UnsignedInvokeTransaction {
-    pub fn sign(&self, key: &PrivateKey) -> SignedInvokeTransaction {
-        SignedInvokeTransaction {
+    pub fn sign(&self, key: &PrivateKey) -> Result<SignedInvokeTransaction, SignatureError> {
+        Ok(SignedInvokeTransaction {
             payload: self.clone(),
-            signature: key.sign_hash(&self.sig_hash()),
-        }
+            signature: key.sign_hash(&self.sig_hash())?,
+        })
     }
 
     pub fn sig_hash(&self) -> Hash {
@@ -366,10 +344,7 @@ impl UnsignedInvokeTransaction {
             SequenceField(UInt32Type(self.sequence)).into(),
             LastLedgerSequenceField(UInt32Type(self.last_ledger_sequence)).into(),
             FeeField(AmountType(Amount::Xrp(self.fee))).into(),
-            SigningPubKeyField(BlobType(
-                self.signing_pub_key.to_compressed_bytes_be().to_vec(),
-            ))
-            .into(),
+            SigningPubKeyField(BlobType(self.signing_pub_key.to_bytes_be().to_vec())).into(),
             AccountField(AccountIDType(self.account)).into(),
             DestinationField(AccountIDType(self.destination)).into(),
         ];
@@ -414,32 +389,20 @@ impl SignedPaymentTransaction {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut fields: Vec<RippleFieldKind> = vec![
+        let fields: Vec<RippleFieldKind> = vec![
             TransactionTypeField(UInt16Type(0)).into(),
-            NetworkIdField(UInt32Type(self.payload.network_id)).into(),
             SequenceField(UInt32Type(self.payload.sequence)).into(),
             LastLedgerSequenceField(UInt32Type(self.payload.last_ledger_sequence)).into(),
             AmountField(AmountType(self.payload.amount.clone())).into(),
             FeeField(AmountType(Amount::Xrp(self.payload.fee))).into(),
             SigningPubKeyField(BlobType(
-                self.payload
-                    .signing_pub_key
-                    .to_compressed_bytes_be()
-                    .to_vec(),
+                self.payload.signing_pub_key.to_bytes_be().to_vec(),
             ))
             .into(),
             TxnSignatureField(BlobType(self.signature.to_bytes().to_vec())).into(),
             AccountField(AccountIDType(self.payload.account)).into(),
             DestinationField(AccountIDType(self.payload.destination)).into(),
         ];
-        if let Some(hook_parameters) = &self.payload.hook_parameters {
-            fields.push(
-                HookParametersField(STArrayType(
-                    hook_parameters.iter().map(|item| item.into()).collect(),
-                ))
-                .into(),
-            );
-        }
 
         // TODO: sort fields
 
@@ -475,10 +438,7 @@ impl SignedSetHookTransaction {
             LastLedgerSequenceField(UInt32Type(self.payload.last_ledger_sequence)).into(),
             FeeField(AmountType(Amount::Xrp(self.payload.fee))).into(),
             SigningPubKeyField(BlobType(
-                self.payload
-                    .signing_pub_key
-                    .to_compressed_bytes_be()
-                    .to_vec(),
+                self.payload.signing_pub_key.to_bytes_be().to_vec(),
             ))
             .into(),
             TxnSignatureField(BlobType(self.signature.to_bytes().to_vec())).into(),
@@ -543,10 +503,7 @@ impl SignedAccountSetTransaction {
         fields.extend(vec![
             FeeField(AmountType(Amount::Xrp(self.payload.fee))).into(),
             SigningPubKeyField(BlobType(
-                self.payload
-                    .signing_pub_key
-                    .to_compressed_bytes_be()
-                    .to_vec(),
+                self.payload.signing_pub_key.to_bytes_be().to_vec(),
             ))
             .into(),
             TxnSignatureField(BlobType(self.signature.to_bytes().to_vec())).into(),
@@ -603,10 +560,7 @@ impl SignedTrustSetTransaction {
             LimitAmountField(AmountType(Amount::Token(self.payload.limit_amount.clone()))).into(),
             FeeField(AmountType(Amount::Xrp(self.payload.fee))).into(),
             SigningPubKeyField(BlobType(
-                self.payload
-                    .signing_pub_key
-                    .to_compressed_bytes_be()
-                    .to_vec(),
+                self.payload.signing_pub_key.to_bytes_be().to_vec(),
             ))
             .into(),
             TxnSignatureField(BlobType(self.signature.to_bytes().to_vec())).into(),
@@ -646,10 +600,7 @@ impl SignedInvokeTransaction {
             LastLedgerSequenceField(UInt32Type(self.payload.last_ledger_sequence)).into(),
             FeeField(AmountType(Amount::Xrp(self.payload.fee))).into(),
             SigningPubKeyField(BlobType(
-                self.payload
-                    .signing_pub_key
-                    .to_compressed_bytes_be()
-                    .to_vec(),
+                self.payload.signing_pub_key.to_bytes_be().to_vec(),
             ))
             .into(),
             TxnSignatureField(BlobType(self.signature.to_bytes().to_vec())).into(),
@@ -714,15 +665,9 @@ mod tests {
 
     #[test]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn test_sign_payment_transaction() {
+    fn test_secp256k1_sign_payment_transaction() {
         const EXPECTED_ENCODED: &[u8] = &hex!(
-            "120000210000535a2400000064201b00000065614000000005f5e10\
-            06840000000000000147321032dc8fe06a6969aef77325f4ea7710f2\
-            5532e6e044c8d0befab585c542aa79a4c744630440220083a1287449\
-            8456cb99f1603168cdd5a3d9ffb0ad602af1bce32a4cfd1322dee022\
-            03dae0d9795c482082cb79db1a3a1a101edd2609808c0f8d0d49b279\
-            21d4f2fae81142a73c099d4b6e693facac67be9dc780043d78b12831\
-            42bb872bde0610250cd42abf8c099194380769266"
+            "1200002400000064201B00000065614000000005F5E1006840000000000000147321032DC8FE06A6969AEF77325F4EA7710F25532E6E044C8D0BEFAB585C542AA79A4C74463044022079FF9D3D77FCCC98F2DCA73FDAE29226743E8ED8CB2EC1C4E76F222A661B4E64022072706F585BF091A0929659EE784470591ABAEE0BB95D2A804236583231B802BB81142A73C099D4B6E693FACAC67BE9DC780043D78B1283142BB872BDE0610250CD42ABF8C099194380769266"
         );
 
         let private_key = Secret::from_base58check("spvyv3vG6GBG9sA6o4on8YDpxp9ZZ")
@@ -731,18 +676,71 @@ mod tests {
 
         let unsigned_payment = UnsignedPaymentTransaction {
             account: Address::from_base58check("rh17sCvf1XKie2v9gdrZh3oDihyGsgkDdX").unwrap(),
-            network_id: 21338,
             fee: XrpAmount::from_drops(20).unwrap(),
             sequence: 100,
             last_ledger_sequence: 101,
             signing_pub_key: private_key.public_key(),
-            hook_parameters: None,
             amount: Amount::Xrp(XrpAmount::from_drops(100000000).unwrap()),
             destination: Address::from_base58check("rhzBrANLLrt2H9TxrLVkvTsQHuZ3sfFXEW").unwrap(),
         };
 
-        let signed_payment = unsigned_payment.sign(&private_key);
+        let signed_payment = unsigned_payment
+            .sign(&private_key)
+            .expect("Failed to sign transaction");
+
+        assert_eq!(EXPECTED_ENCODED, signed_payment.to_bytes());
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_ed25519_sign_payment_transaction() {
+        const EXPECTED_ENCODED: &[u8] = &hex!(
+            "1200002400000064201B00000065614000000005F5E1006840000000000000147321EDB0AB92740256BFCE24DF08678CF28C9F9AC16C9DC39A1A7D0423B05530B6FAE7744041F80E1DCDCC051918E6C03BADFFFFD15FD08660DBCAB36B98300B7FD8F0E9D3E165307B84C89414B73471F1ECCE66DA26AE25B423D1CA3A61F2D04284D02E0581142789BD47FAC4E8CA459F4EBEE392F6AD6AD7A84383142BB872BDE0610250CD42ABF8C099194380769266"
+        );
+
+        let private_key = Secret::from_base58check("sEdTFjQkShqBAfj8tBLdUaJsdHFfgfX")
+            .unwrap()
+            .private_key();
+
+        println!(
+            "{:?}",
+            hex::encode_upper(private_key.public_key().address().to_bytes())
+        );
+
+        let unsigned_payment = UnsignedPaymentTransaction {
+            account: private_key.public_key().address(),
+            fee: XrpAmount::from_drops(20).unwrap(),
+            sequence: 100,
+            last_ledger_sequence: 101,
+            signing_pub_key: private_key.public_key(),
+            amount: Amount::Xrp(XrpAmount::from_drops(100000000).unwrap()),
+            destination: Address::from_base58check("rhzBrANLLrt2H9TxrLVkvTsQHuZ3sfFXEW").unwrap(),
+        };
+
+        let signed_payment = unsigned_payment
+            .sign(&private_key)
+            .expect("Failed to sign transaction");
+
+        println!("{:?}", hex::encode_upper(signed_payment.to_bytes()));
 
         assert_eq!(EXPECTED_ENCODED, signed_payment.to_bytes());
     }
 }
+
+// [18, 0, 0, 36, 0, 0, 0, 100, 32, 27, 0, 0, 0, 101, 97, 64, 0, 0, 0, 5, 245, 225, 0, 104, 64, 0,
+// 0, 0, 0, 0, 0, 20, 115, 33, 237, 209, 195, 195, 73, 99, 179, 32, 229, 24, 81, 87, 136, 92, 191,
+// 106, 15, 238, 195, 157, 235, 48, 112, 98, 130, 231, 228, 239, 109, 22, 58, 163, 133, 116, 64, 51,
+// 246, 17, 7, 103, 130, 171, 216, 231, 78, 248, 168, 227, 85, 48, 4, 166, 47, 53, 92, 29, 196, 94,
+// 91, 128, 188, 237, 67, 80, 15, 87, 213, 4, 72, 242, 251, 116, 2, 116, 129, 66, 231, 40, 130, 31,
+// 219, 243, 183, 57, 248, 17, 64, 82, 136, 158, 175, 19, 193, 169, 10, 6, 112, 179, 11, 129, 20,
+// 208, 168, 99, 125, 24, 99, 194, 137, 122, 181, 12, 51, 186, 123, 184, 139, 231, 107, 54, 99, 131,
+// 20, 43, 184, 114, 189, 224, 97, 2, 80, 205, 66, 171, 248, 192, 153, 25, 67, 128, 118, 146, 102]
+// [18, 0, 0, 36, 0, 0, 0, 100, 32, 27, 0, 0, 0, 101, 97, 64, 0, 0, 0, 5, 245, 225, 0, 104, 64, 0,
+// 0, 0, 0, 0, 0, 20, 115, 33, 3, 45, 200, 254, 6, 166, 150, 154, 239, 119, 50, 95, 78, 167, 113,
+// 15, 37, 83, 46, 110, 4, 76, 141, 11, 239, 171, 88, 92, 84, 42, 167, 154, 76, 116, 70, 48, 68, 2,
+// 32, 121, 255, 157, 61, 119, 252, 204, 152, 242, 220, 167, 63, 218, 226, 146, 38, 116, 62, 142,
+// 216, 203, 46, 193, 196, 231, 111, 34, 42, 102, 27, 78, 100, 2, 32, 114, 112, 111, 88, 91, 240,
+// 145, 160, 146, 150, 89, 238, 120, 68, 112, 89, 26, 186, 238, 11, 185, 93, 42, 128, 66, 54, 88,
+// 50, 49, 184, 2, 187, 129, 20, 42, 115, 192, 153, 212, 182, 230, 147, 250, 202, 198, 123, 233,
+// 220, 120, 0, 67, 215, 139, 18, 131, 20, 43, 184, 114, 189, 224, 97, 2, 80, 205, 66, 171, 248,
+// 192, 153, 25, 67, 128, 118, 146, 102]

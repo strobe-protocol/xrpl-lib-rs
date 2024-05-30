@@ -133,7 +133,7 @@ async fn get_new_account(faucet: &TestnetFaucet) -> NewAccountResult {
     }
 }
 
-async fn set_hook(setup: &CommonSetup, hook_on: Hash, create_code: Vec<u8>) {
+async fn set_hook(setup: &CommonSetup, hook_on: Hash, create_code: Vec<u8>) -> anyhow::Result<()> {
     let txn_ctx = get_transaction_context(setup.address, &setup.rpc)
         .await
         .unwrap();
@@ -153,7 +153,7 @@ async fn set_hook(setup: &CommonSetup, hook_on: Hash, create_code: Vec<u8>) {
             hook_parameters: vec![],
         }],
     };
-    let signed_tx = unsigned_tx.sign(&setup.private_key);
+    let signed_tx = unsigned_tx.sign(&setup.private_key)?;
     let set_hook_result = setup
         .rpc
         .submit(&signed_tx.to_bytes())
@@ -176,6 +176,8 @@ async fn set_hook(setup: &CommonSetup, hook_on: Hash, create_code: Vec<u8>) {
             )
         }
     }
+
+    Ok(())
 }
 
 async fn get_account_hook_object(setup: &CommonSetup) -> HookAccountObject {
@@ -240,7 +242,7 @@ async fn get_account_balance(rpc: &HttpRpcClient, address: Address) -> u64 {
 
 #[tokio::test]
 #[ignore = "skipped by default as access to faucet is rate limited"]
-async fn testnet_xrp_payment() {
+async fn testnet_xrp_payment() -> anyhow::Result<()> {
     let benefactor = setup().await;
 
     let beneficiary_address =
@@ -249,10 +251,10 @@ async fn testnet_xrp_payment() {
         get_account_balance(&benefactor.rpc, benefactor.address),
         get_account_balance(&benefactor.rpc, beneficiary_address)
     );
-    assert_eq!(benefactor_balance_before, 10000000000);
+    assert_eq!(benefactor_balance_before, 1000000000);
 
-    let payment_fee = 1000000000;
-    let payment_amount = 9000000000;
+    let payment_fee = 100000000;
+    let payment_amount = 9000000;
     let expected_benefactor_balance_after =
         benefactor_balance_before - payment_fee - payment_amount;
     let expected_beneficiary_balance_after = beneficiary_balance_before + payment_amount;
@@ -262,16 +264,14 @@ async fn testnet_xrp_payment() {
         .unwrap();
     let unsigned_tx = UnsignedPaymentTransaction {
         account: benefactor.address,
-        network_id: 21338,
         fee: XrpAmount::from_drops(payment_fee).unwrap(),
         sequence: txn_ctx.account_sequence,
         last_ledger_sequence: txn_ctx.last_ledger_sequence,
         signing_pub_key: benefactor.private_key.public_key(),
-        hook_parameters: None,
         amount: Amount::Xrp(XrpAmount::from_drops(payment_amount).unwrap()),
         destination: beneficiary_address,
     };
-    let signed_tx = unsigned_tx.sign(&benefactor.private_key);
+    let signed_tx = unsigned_tx.sign(&benefactor.private_key)?;
 
     let payment_result = benefactor
         .rpc
@@ -306,11 +306,13 @@ async fn testnet_xrp_payment() {
             )
         }
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[ignore = "skipped by default as access to faucet is rate limited"]
-async fn testnet_account_set() {
+async fn testnet_account_set() -> anyhow::Result<()> {
     let setup = setup().await;
 
     let txn_ctx = get_transaction_context(setup.address, &setup.rpc)
@@ -332,7 +334,7 @@ async fn testnet_account_set() {
         hook_parameters: None,
     };
 
-    let signed_tx = unsigned_tx.sign(&setup.private_key);
+    let signed_tx = unsigned_tx.sign(&setup.private_key)?;
 
     let account_set_result = setup
         .rpc
@@ -353,11 +355,13 @@ async fn testnet_account_set() {
             panic!("failed to submit transaction: {:?}", rpc_error.error)
         }
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[ignore = "skipped by default as access to faucet is rate limited"]
-async fn testnet_trust_set() {
+async fn testnet_trust_set() -> anyhow::Result<()> {
     let setup = setup().await;
 
     let txn_ctx = get_transaction_context(setup.address, &setup.rpc)
@@ -379,7 +383,7 @@ async fn testnet_trust_set() {
         },
     };
 
-    let signed_tx = unsigned_tx.sign(&setup.private_key);
+    let signed_tx = unsigned_tx.sign(&setup.private_key)?;
 
     let trust_set_result = setup
         .rpc
@@ -400,11 +404,13 @@ async fn testnet_trust_set() {
             panic!("failed to submit transaction: {:?}", rpc_error.error)
         }
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[ignore = "skipped by default as access to faucet is rate limited"]
-async fn testnet_hook_execution() {
+async fn testnet_hook_execution() -> anyhow::Result<()> {
     let beneficiary = setup().await;
 
     set_hook(
@@ -412,7 +418,7 @@ async fn testnet_hook_execution() {
         hex!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbffffe").into(),
         include_bytes!("./data/hook-accept.wasm").to_vec(),
     )
-    .await;
+    .await?;
 
     let beneficiary_hook_object = get_account_hook_object(&beneficiary).await;
 
@@ -423,16 +429,14 @@ async fn testnet_hook_execution() {
 
     let unsigned_tx = UnsignedPaymentTransaction {
         account: benefactor.address,
-        network_id: 21338,
         fee: XrpAmount::from_drops(100000000).unwrap(),
         sequence: txn_ctx.account_sequence,
         last_ledger_sequence: txn_ctx.last_ledger_sequence,
         signing_pub_key: benefactor.private_key.public_key(),
-        hook_parameters: None,
         amount: Amount::Xrp(XrpAmount::from_drops(1000000).unwrap()),
         destination: beneficiary.address,
     };
-    let signed_tx = unsigned_tx.sign(&benefactor.private_key);
+    let signed_tx = unsigned_tx.sign(&benefactor.private_key)?;
 
     let payment_result = benefactor
         .rpc
@@ -478,11 +482,13 @@ async fn testnet_hook_execution() {
             panic!("failed to submit transaction: {:?}", rpc_error.error)
         }
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[ignore = "skipped by default as access to faucet is rate limited"]
-async fn testnet_tt_invoke_hook_execution_with_hook_parameters() {
+async fn testnet_tt_invoke_hook_execution_with_hook_parameters() -> anyhow::Result<()> {
     let hook_account = setup().await;
 
     set_hook(
@@ -490,7 +496,7 @@ async fn testnet_tt_invoke_hook_execution_with_hook_parameters() {
         hex!("fffffffffffffffffffffffffffffffffffffff7ffffffffffffffffffbfffff").into(),
         include_bytes!("./data/hook-on-tt-invoke.wasm").to_vec(),
     )
-    .await;
+    .await?;
     let hook_account_hook_object = get_account_hook_object(&hook_account).await;
 
     let invoker = setup().await;
@@ -518,7 +524,7 @@ async fn testnet_tt_invoke_hook_execution_with_hook_parameters() {
         ]),
         destination: hook_account.address,
     };
-    let signed_tx = unsigned_tx.sign(&invoker.private_key);
+    let signed_tx = unsigned_tx.sign(&invoker.private_key)?;
 
     let invoke_result = invoker
         .rpc
@@ -569,6 +575,8 @@ async fn testnet_tt_invoke_hook_execution_with_hook_parameters() {
             panic!("failed to submit transaction: {:?}", rpc_error.error)
         }
     }
+
+    Ok(())
 }
 #[tokio::test]
 #[ignore = "skipped by default as RPC is rate limited"]
@@ -599,7 +607,7 @@ async fn testnet_account_lines() {
 
 #[tokio::test]
 #[ignore = "skipped by default as access to faucet is rate limited"]
-async fn testnet_hook_ledger_entry() {
+async fn testnet_hook_ledger_entry() -> anyhow::Result<()> {
     let hook_account = setup().await;
 
     set_hook(
@@ -607,7 +615,7 @@ async fn testnet_hook_ledger_entry() {
         hex!("fffffffffffffffffffffffffffffffffffffff7ffffffffffffffffffbfffff").into(),
         include_bytes!("./data/hook-state.wasm").to_vec(),
     )
-    .await;
+    .await?;
     let hook_account_hook_object = get_account_hook_object(&hook_account).await;
     let invoker = setup().await;
     let txn_ctx = get_transaction_context(invoker.address, &hook_account.rpc)
@@ -625,7 +633,7 @@ async fn testnet_hook_ledger_entry() {
         hook_parameters: None,
         destination: hook_account.address,
     };
-    let signed_tx = unsigned_tx.sign(&invoker.private_key);
+    let signed_tx = unsigned_tx.sign(&invoker.private_key)?;
 
     let invoke_result = invoker
         .rpc
@@ -702,11 +710,13 @@ async fn testnet_hook_ledger_entry() {
             panic!("failed to submit transaction: {:?}", rpc_error.error)
         }
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[ignore = "skipped by default as access to faucet is rate limited"]
-async fn testnet_issue_fungible_token() {
+async fn testnet_issue_fungible_token() -> anyhow::Result<()> {
     let setup = setup().await;
 
     let beneficiary_address = setup.address;
@@ -729,7 +739,7 @@ async fn testnet_issue_fungible_token() {
         signing_pub_key: issuer_secret.private_key().public_key(),
         hook_parameters: None,
     };
-    let issuer_account_set_signed_tx = issuer_account_set_tx.sign(&issuer_secret.private_key());
+    let issuer_account_set_signed_tx = issuer_account_set_tx.sign(&issuer_secret.private_key())?;
     let issuer_account_set_tx = setup
         .rpc
         .submit(&issuer_account_set_signed_tx.to_bytes())
@@ -764,7 +774,7 @@ async fn testnet_issue_fungible_token() {
         hook_parameters: None,
     };
     let beneficiary_account_set_signed_tx =
-        beneficiary_account_set_tx.sign(&beneficiary_private_key);
+        beneficiary_account_set_tx.sign(&beneficiary_private_key)?;
     let beneficiary_account_set_tx = setup
         .rpc
         .submit(&beneficiary_account_set_signed_tx.to_bytes())
@@ -803,7 +813,7 @@ async fn testnet_issue_fungible_token() {
     };
 
     let trust_set_signed_tx: xrpl_lib::transaction::SignedTrustSetTransaction =
-        unsigned_trust_set_tx.sign(&beneficiary_private_key);
+        unsigned_trust_set_tx.sign(&beneficiary_private_key)?;
 
     let trust_set_result = setup
         .rpc
@@ -830,12 +840,10 @@ async fn testnet_issue_fungible_token() {
         .expect("failed to prepare for transaction");
     let unsigned_token_issue_payment_tx = UnsignedPaymentTransaction {
         account: issuer_address,
-        network_id: 21338,
         fee: XrpAmount::from_drops(100).unwrap(),
         sequence: txn_ctx.account_sequence,
         last_ledger_sequence: txn_ctx.last_ledger_sequence,
         signing_pub_key: issuer_secret.private_key().public_key(),
-        hook_parameters: None,
         amount: Amount::Token(TokenAmount {
             value: TokenValue::from_str("10").unwrap(),
             currency: CurrencyCode::Standard(StandardCurrencyCode::new(*b"MMM").unwrap()),
@@ -845,7 +853,7 @@ async fn testnet_issue_fungible_token() {
     };
 
     let token_issue_payment_signed_tx =
-        unsigned_token_issue_payment_tx.sign(&issuer_secret.private_key());
+        unsigned_token_issue_payment_tx.sign(&issuer_secret.private_key())?;
     let token_issue_payment_result = setup
         .rpc
         .submit(&token_issue_payment_signed_tx.to_bytes())
@@ -878,7 +886,7 @@ async fn testnet_issue_fungible_token() {
 
     match account_lines {
         AccountLinesResult::Success(success) => {
-            let fake_token_line = success.lines.get(0).expect("no account lines found");
+            let fake_token_line = success.lines.first().expect("no account lines found");
             assert_eq!(
                 Into::<BigDecimal>::into(fake_token_line.balance.clone()),
                 BigDecimal::from_str("10.0").unwrap()
@@ -893,4 +901,6 @@ async fn testnet_issue_fungible_token() {
             panic!("failed to get account lines: {:?}", rpc_error.error)
         }
     }
+
+    Ok(())
 }

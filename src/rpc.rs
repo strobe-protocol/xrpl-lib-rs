@@ -28,6 +28,8 @@ pub enum HttpRpcClientError {
     UniversalError(UniversalXrplError),
     #[error("too many attempts on rate limit")]
     TooManyAttemptsOnRateLimit,
+    #[error("json parse error: {0}; actual response: {1}")]
+    JsonParseError(serde_json::Error, String),
 }
 
 #[derive(Debug, Deserialize, thiserror::Error)]
@@ -679,12 +681,16 @@ impl HttpRpcClient {
                 return Err(HttpRpcClientError::UnsuccessfulStatusCode(status_code));
             }
 
-            let body: RpcResponse<RES> = response
-                .json()
+            // This is to ensure that we can see helpful messages in case of an error
+            let response_text = response
+                .text()
                 .await
                 .map_err(HttpRpcClientError::HttpError)?;
 
-            return match body {
+            let json: RpcResponse<RES> = serde_json::from_str(&response_text)
+                .map_err(|e| HttpRpcClientError::JsonParseError(e, response_text))?;
+
+            return match json {
                 RpcResponse::Success(body) => Ok(body.result),
                 RpcResponse::Error(body) => {
                     Err(HttpRpcClientError::UniversalError(body.result.error))

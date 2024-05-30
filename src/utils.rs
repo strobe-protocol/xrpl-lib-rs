@@ -45,7 +45,7 @@ pub async fn wait_for_transaction(
     let mut attempts = 0;
 
     loop {
-        if attempts >= 5 {
+        if attempts >= 50 {
             return Err(WaitForTransactionError::Timeout);
         }
 
@@ -53,6 +53,8 @@ pub async fn wait_for_transaction(
             .tx(transaction_hash)
             .await
             .map_err(WaitForTransactionError::HttpRpcClientError)?;
+
+        println!("{:?}", tx);
 
         match tx {
             TxResult::Success(success) => {

@@ -28,8 +28,8 @@ impl PrivateKey {
 
         // TODO: check whether unwraps are safe here
         let (sig, _) = key.sign_prehash_recoverable(&hash_bytes).unwrap();
-        let r = sig.r().to_bytes().try_into().unwrap();
-        let s = sig.s().to_bytes().try_into().unwrap();
+        let r = sig.r().to_bytes().into();
+        let s = sig.s().to_bytes().into();
 
         Signature { r, s }
     }

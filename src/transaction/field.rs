@@ -143,7 +143,7 @@ trait RippleField {
 impl FieldId {
     pub fn encode(&self) -> Vec<u8> {
         if self.type_code < 16 && self.field_code < 16 {
-            vec![(self.type_code as u8) << 4 | self.field_code]
+            vec![((self.type_code as u8) << 4) | self.field_code]
         } else if self.type_code >= 16 && self.field_code < 16 {
             vec![self.field_code, self.type_code as u8]
         } else if self.type_code < 16 && self.field_code >= 16 {

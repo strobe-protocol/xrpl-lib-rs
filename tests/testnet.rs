@@ -878,7 +878,7 @@ async fn testnet_issue_fungible_token() {
 
     match account_lines {
         AccountLinesResult::Success(success) => {
-            let fake_token_line = success.lines.get(0).expect("no account lines found");
+            let fake_token_line = success.lines.first().expect("no account lines found");
             assert_eq!(
                 Into::<BigDecimal>::into(fake_token_line.balance.clone()),
                 BigDecimal::from_str("10.0").unwrap()
